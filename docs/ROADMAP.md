@@ -72,14 +72,42 @@ with a tagged playable build + a written playtest question list *(D 9.4)*.
 - [ ] Still open (v0.3.x): corridor hazards variety, fast/risky vs slow/safe dual
       routes, per-floor utility themes, greybox metrics audit vs co-op widths.
 
-**Adopted from the architecture review (tracked for v0.35 "ENGINE HARDENING"):**
-fixed-timestep simulation loop with interpolation; Rapier character capsule;
-three-mesh-bvh raycasts; attack-token crowd choreography; AI update-frequency tiers;
-recast-navigation for specials; postprocessing (small stack); tweakpane debug panel;
-howler audio voice manager; MultiplayerTransport interface (WebSocket / loopback /
-Steam Networking Messages — NOT deprecated ISteamNetworking); Electron context
-isolation for steamworks bridge; roster freeze (Bruiser/Janitor/Barista/IT/Intern/
-Analyst); reduced always-on HUD.
+### ✅ v0.35 — "ENGINE HARDENING" (shipped)
+*Adopted from the architecture review. Full contract: [ENGINE.md](ENGINE.md).*
+
+- [x] **Fixed-timestep sim** at 60 Hz with sub-stepping and backlog drop; edge
+      input gated to the first sub-step so a slow frame can't double-jump you.
+- [x] **Rapier** — level colliders mirrored as static cuboids; Lego gibs are
+      pooled rigid bodies that land on desks and get blown around by explosions;
+      `CharacterMotor` capsule available but **opt-in** (the tuned dash/slide
+      feel in TUNE is shipping, so Rapier is a motor we drive, not a controller
+      we obey).
+- [x] **three-mesh-bvh** — exact hitscan + AI line of sight, replacing a 0.7u
+      ray march that cost O(range × colliders) and tunnelled through thin walls.
+- [x] **recast-navigation** — navmesh built once per floor from room quads +
+      obstacle boxes; `PathAgent` engages only when the direct line is blocked,
+      so open bullpens keep cheap direct seek. Flyers excluded.
+- [x] **postprocessing** — three effects, one pass (bloom → vignette → tone
+      mapping, +SMAA at high); vignette doubles as the low-HP readout.
+- [x] **tweakpane debug panel** (` key) — the v0.2 FOUNDATIONS requirement:
+      live perf, director overrides, spawn anything, warp floors, god mode,
+      live TUNE sliders with copy-as-JSON, telemetry export.
+- [x] **Voice manager** — distance cull → cooldown → polyphony cap → frame
+      budget by priority, wrapped around the existing synth so all ~130 call
+      sites got it for free. Howler wired as the streamed-stem path for v0.7.
+- [x] **MultiplayerTransport** — WebSocket / loopback / Steam stub (Steam
+      Networking Messages over SDR, NOT deprecated ISteamNetworking). Loopback
+      makes co-op message flow unit-testable without a server.
+- [x] **Local telemetry** (v0.2 item, pulled forward) + crash overlay with a
+      copyable report and a stall watchdog.
+- [x] **Toolchain the repo never had**: git, ESLint, Prettier, Vitest (68
+      tests), GitHub Actions CI, `.gitignore` that keeps the Meshy key out.
+- [x] `@gltf-transform` deps installed — the already-written GLB optimizer had
+      never been runnable. Reports **63.7 MB → 15.3 MB**.
+
+Still open from that review: attack-token crowd choreography; AI update-frequency
+tiers; Electron context isolation for the steamworks bridge; roster freeze
+(Bruiser/Janitor/Barista/IT/Intern/Analyst); reduced always-on HUD.
 
 ### ~~v0.3 — "FLOOR PLAN" (corridor + wave level design)~~ — merged above
 *User request: corridors + waves so we have arena AND level design.*

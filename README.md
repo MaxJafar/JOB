@@ -6,7 +6,7 @@ except every biome is a department and every boss has a corner office.
 
 **Climb the tower. Fire the C.E.O.**
 
-![stack](https://img.shields.io/badge/three.js-r180-blue) ![stack](https://img.shields.io/badge/vite-7-purple) ![stack](https://img.shields.io/badge/multiplayer-self--hosted-green)
+![stack](https://img.shields.io/badge/three.js-r180-blue) ![stack](https://img.shields.io/badge/vite-7-purple) ![stack](https://img.shields.io/badge/physics-rapier-orange) ![stack](https://img.shields.io/badge/nav-recast-teal) ![stack](https://img.shields.io/badge/multiplayer-self--hosted-green)
 
 ## Run it
 
@@ -14,6 +14,17 @@ except every biome is a department and every boss has a corner office.
 npm install
 npm run dev        # → http://localhost:5173
 ```
+
+Other commands:
+
+| | |
+|---|---|
+| `npm test` | engine test suite (physics, navmesh, BVH, timestep, audio, netcode) |
+| `npm run lint` | ESLint |
+| `npm run check` | lint + test + build — the gate CI runs |
+| `npm run assets:check` | report how much dead weight the shipped GLBs carry |
+| `npm run assets:optimize` | strip it (raws archived to `.meshy-cache/`) |
+| `npm run host` | co-op relay on `:7071` |
 
 Co-op (self-hosted, zero server costs):
 
@@ -40,6 +51,27 @@ Steam Datagram Relay P2P — see [STEAM.md](STEAM.md).
 | `V` | toggle first ↔ third person |
 | `E` | interact (crates, elevator, office utilities) |
 | `Esc` / `P` | pause |
+| `` ` `` | **debug panel** — perf graph, director controls, spawn anything, live tuning sliders (dev builds; set `localStorage['job.debug']='1'` elsewhere) |
+
+## Engine
+
+The simulation sits on a small engine layer in `src/core/` — see
+[docs/ENGINE.md](docs/ENGINE.md) for the full contract.
+
+| | |
+|---|---|
+| **Rapier** | world colliders + rigid-body Lego gibs that land on real desks; opt-in character motor |
+| **three-mesh-bvh** | exact hitscan and AI line of sight (replaced a 0.7u ray march that tunnelled through thin walls) |
+| **recast-navigation** | per-floor navmesh; enemies route around cubicles instead of pressing into them |
+| **postprocessing** | bloom → vignette → tone mapping in one pass; the vignette is also the low-HP readout |
+| **fixed timestep** | 60 Hz sim, so dash distance and jump apex no longer depend on your monitor |
+| **voice manager** | a 40-mob horde can't fire 40 simultaneous voices over your hit confirms |
+
+The load-bearing rule: `WorldBVH`, `NavMesh` and `PhysicsWorld` are all built
+from the **same** collider list movement uses, so bullets, bodies and pathing
+can never disagree about what is solid. Every one of them is optional at
+runtime — if a WASM module fails to load the game falls back to its original
+code path rather than failing to boot.
 
 ## The loop
 

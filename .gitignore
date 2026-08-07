@@ -33,6 +33,7 @@ npm-debug.log*
 .vite/
 coverage/
 
-# ---- stray saved-page cruft ----
-*_files/
-"J.O.B — Just. Obey. Business..html"
+# ---- stray "Save Page As" cruft in the project root ----
+# (left in place on disk, just not tracked — delete when you're sure)
+/*_files/
+/J.O.B*.html
