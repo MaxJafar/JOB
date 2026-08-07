@@ -1,0 +1,38 @@
+# ---- dependencies & build output ----
+node_modules/
+dist/
+dist-electron/
+release/
+*.tsbuildinfo
+
+# ---- secrets ----
+# Meshy API key — NEVER commit this
+scripts/.meshy.key
+.env
+.env.*
+!.env.example
+steam_appid.txt
+
+# ---- generated / cached assets ----
+# Meshy raw downloads archived by scripts/meshy-optimize.mjs. Large, and the
+# signed source URLs expire, so keep them locally but out of git.
+.meshy-cache/
+
+# ---- editor & OS ----
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- logs & local state ----
+*.log
+npm-debug.log*
+.vite/
+coverage/
+
+# ---- stray saved-page cruft ----
+*_files/
+"J.O.B — Just. Obey. Business..html"

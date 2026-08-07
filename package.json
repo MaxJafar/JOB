@@ -1,0 +1,58 @@
+{
+  "name": "job-roguelite",
+  "private": true,
+  "version": "0.3.5",
+  "description": "J.O.B — a low-poly office roguelite battle arena (Risk of Rain x Left 4 Dead)",
+  "license": "UNLICENSED",
+  "author": "pumba",
+  "type": "module",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "host": "node server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"src/**/*.{js,css}\" \"scripts/**/*.mjs\"",
+    "format:check": "prettier --check \"src/**/*.{js,css}\" \"scripts/**/*.mjs\"",
+    "check": "npm run lint && npm run test && npm run build",
+    "assets": "node scripts/meshy.mjs",
+    "assets:validate": "node scripts/meshy-validate.mjs",
+    "assets:check": "node scripts/meshy-optimize.mjs --check",
+    "assets:optimize": "node scripts/meshy-optimize.mjs",
+    "assets:inspect": "gltf-transform inspect",
+    "electron": "electron electron/main.cjs"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.19.3",
+    "@recast-navigation/three": "^0.43.1",
+    "bitecs": "^0.4.0",
+    "howler": "^2.2.4",
+    "postprocessing": "^6.39.4",
+    "recast-navigation": "^0.43.1",
+    "three": "^0.180.0",
+    "three-mesh-bvh": "^0.9.14",
+    "tweakpane": "^4.0.5",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@gltf-transform/cli": "^4.4.2",
+    "@gltf-transform/core": "^4.4.2",
+    "@gltf-transform/extensions": "^4.4.2",
+    "@gltf-transform/functions": "^4.4.2",
+    "@types/howler": "^2.2.13",
+    "@types/three": "^0.185.4",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.9.0",
+    "prettier": "^3.9.6",
+    "vite": "^7.1.2",
+    "vitest": "^4.1.10"
+  }
+}

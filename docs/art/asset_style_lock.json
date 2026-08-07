@@ -1,0 +1,153 @@
+{
+  "schema_version": "1.0.0",
+  "lock_id": "job_asset_style_lock_v1",
+  "status": "draft",
+  "version": "1.0.0",
+  "brand": {
+    "game": "J.O.B. - Just Obey Business",
+    "tone": "corporate office satire with brutalist memo clarity and arcade neon escalation",
+    "audience_boundary": "stylized game UI for a low-poly office roguelite; no photorealism or real-brand imitation",
+    "identity_statement": "Sterile business forms glow like a scoreboard while desk-object bureaucracy becomes readable combat language."
+  },
+  "references": [
+    {
+      "id": "packet-style",
+      "path": "docs/CODEX_ASSET_PACK.md",
+      "role": "style_reference",
+      "scope": "palette, motifs, shape language, typography behavior, formats, and acceptance checks",
+      "approval_state": "draft"
+    },
+    {
+      "id": "hud-runtime",
+      "path": "index.html and src/style.css",
+      "role": "composition_reference",
+      "scope": "current HUD layout, runtime scale, and live-text boundaries only",
+      "approval_state": "review_only"
+    },
+    {
+      "id": "game-fiction",
+      "path": "README.md",
+      "role": "style_reference",
+      "scope": "office satire, gameplay nouns, classes, floors, and tone",
+      "approval_state": "draft"
+    }
+  ],
+  "visual_invariants": {
+    "medium_materials": [
+      "flat graphic UI",
+      "paper forms, punch cards, stamps, thin ink lines",
+      "restrained desk-object and metal/plastic cues"
+    ],
+    "shape_layout": [
+      "sharp rectangular plates",
+      "one clipped 45-degree corner",
+      "1-2px light borders",
+      "quiet stretch-safe centers",
+      "front-on readable silhouettes"
+    ],
+    "hierarchy": [
+      "gold is money and primary action",
+      "cyan is info/event",
+      "red is danger and denial",
+      "green is success",
+      "magenta is rare/marketing",
+      "live engine text stays separate from art"
+    ],
+    "palette_rules": [
+      "#FFD23F money-gold",
+      "#38E1FF cyan",
+      "#FF4D5A red",
+      "#58E07C green",
+      "#FF4FA3 magenta",
+      "#101420 and #2A3242 surfaces",
+      "#EEF2F6 and #9AA7B5 text"
+    ],
+    "lighting_depth": [
+      "front-on orthographic treatment",
+      "maximum two tonal steps",
+      "no shadow deeper than 4px"
+    ],
+    "texture_restraint": [
+      "optional low-opacity scanline or paper grain",
+      "texture must not reduce target-size readability",
+      "state changes use crisp edges and color before glow"
+    ]
+  },
+  "prohibited": [
+    "photorealism or painterly rendering",
+    "heavy multi-stop gradients",
+    "rounded-pill or neumorphic UI",
+    "deep drop shadows and glassmorphism",
+    "real-company logos, copied trade dress, or close brand parodies",
+    "AI-rendered gameplay/UI copy",
+    "unapproved palette drift"
+  ],
+  "asset_families": {
+    "logo": {
+      "purpose": "J.O.B. wordmark and badge stamp for menus and store surfaces",
+      "text_strategy": "editable_vector_master",
+      "output_contract": "SVG master plus transparent 2048px-wide PNG variants; badge at 1024px",
+      "allowed_variation": ["full-color", "mono-light", "mono-dark", "badge-only stamp"],
+      "prohibited": ["AI-rendered letterforms", "photoreal embossing", "real-brand similarity"]
+    },
+    "ui_plate": {
+      "purpose": "stretch-safe panels, buttons, and prompts for HUD and menus",
+      "text_strategy": "live_engine_text",
+      "output_contract": "SVG master plus transparent 9-slice PNG derivatives",
+      "allowed_variation": ["default dark", "gold accent", "danger accent", "interaction state"],
+      "prohibited": ["baked labels", "rounded pills", "quiet-center obstruction"]
+    },
+    "slot_frame": {
+      "purpose": "ability and equipment slot frames",
+      "text_strategy": "live_engine_text",
+      "output_contract": "128px transparent SVG and PNG plates",
+      "allowed_variation": ["role color", "empty state", "module plug-in tabs", "cooldown overlay ring"],
+      "prohibited": ["baked ability icons", "baked cooldown numbers", "heavy bevels"]
+    },
+    "bar": {
+      "purpose": "HP, XP, boss, and event bar frame/fill kit",
+      "text_strategy": "live_engine_text",
+      "output_contract": "horizontal SVG masters plus 9-slice-able PNG derivatives",
+      "allowed_variation": ["health green/red", "XP/event cyan", "boss danger red"],
+      "prohibited": ["baked percentages", "unbounded glow", "more than two tonal steps"]
+    },
+    "crosshair": {
+      "purpose": "combat targeting and hit-confirm reticles",
+      "text_strategy": "no_text",
+      "output_contract": "64px transparent SVG and PNG, 4 styles x 3 states",
+      "allowed_variation": ["idle", "fire", "hit-confirm"],
+      "prohibited": ["micro-detail that disappears at 64px", "copied FPS reticle trade dress"]
+    },
+    "directional_indicator": {
+      "purpose": "damage source direction telegraph",
+      "text_strategy": "no_text",
+      "output_contract": "256px transparent SVG and PNG radial arc sprite",
+      "allowed_variation": ["opacity and rotation driven by runtime"],
+      "prohibited": ["baked direction", "screen-covering opaque fill"]
+    },
+    "rarity": {
+      "purpose": "item/card rarity frames and gems",
+      "text_strategy": "no_text",
+      "output_contract": "128px transparent frames plus 24px transparent gems",
+      "allowed_variation": ["common", "uncommon", "rare", "exec", "contraband"],
+      "prohibited": ["rarity names baked into art", "photoreal gems", "unapproved color semantics"]
+    }
+  },
+  "production_rules": {
+    "text_strategy": "live HTML/engine text except the editable logo SVG",
+    "logo_strategy": "editable SVG master with deterministic raster derivatives",
+    "font_strategy": "Archivo Black or equivalent OFL display face; IBM Plex Mono or equivalent OFL ledger face; platform fallbacks documented in docs/art/FONTS.md",
+    "transparency": "RGBA PNG with transparent corners; no chroma-key source is needed for deterministic vector-derived UI assets",
+    "provenance_record": "docs/art/ASSET_LEDGER.md with generator version, dimensions, hashes, and review state"
+  },
+  "change_control": {
+    "owner": "Project owner review pending",
+    "update_trigger": "palette, corner motif, typography strategy, or asset-family contract changes",
+    "versioning": "amend the art bible and lock together; regenerate affected masters and derivatives"
+  },
+  "open_decisions": [
+    "confirm production font files and local shipping policy",
+    "approve the first HUD screenshot pass at 1080p and Steam #1B2838",
+    "confirm Tier 2 icon border weight"
+  ]
+}

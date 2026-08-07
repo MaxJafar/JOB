@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none" shape-rendering="geometricPrecision">
+    <path d="M 8 30 V 8 H 30 M 98 8 H 120 V 30 M 120 98 V 120 H 98 M 30 120 H 8 V 98" stroke="#FF4FA3" stroke-width="3" opacity=".95"/>
+    <path d="M 8 46 H 18 M 110 46 H 120 M 8 82 H 18 M 110 82 H 120" stroke="#FF4FA3" stroke-width="2" opacity=".65"/>
+    <path d="M 20 20 H 48" stroke="#FF4FA3" stroke-width="2" opacity=".65"/>
+    <path d="M 80 108 H 108" stroke="#FF4FA3" stroke-width="2" opacity=".65"/>
+    <path d="M 44 8 V 0 H 84 V 8 M 52 0 V 5 M 76 0 V 5" stroke="#FF4FA3" stroke-width="3"/></svg>

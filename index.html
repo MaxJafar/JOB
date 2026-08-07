@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>J.O.B — Just. Obey. Business.</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>💼</text></svg>" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="game-canvas"></canvas>
+
+    <!-- ============ HUD (visible during a run) ============ -->
+    <div id="hud" class="hidden">
+      <div id="hud-top-left">
+        <div id="hud-floor-name">FLOOR 1 — FINANCE</div>
+        <div id="hud-timer">00:00</div>
+        <div id="kpi-panel" class="hidden"></div>
+      </div>
+
+      <div id="combo-meter" class="hidden">
+        <div id="combo-count">×0</div>
+        <div id="combo-label">COMBO</div>
+        <div id="combo-bar"><div id="combo-bar-fill"></div></div>
+      </div>
+
+      <div id="draft-root" class="hidden">
+        <div id="draft-title">📋 PERFORMANCE REVIEW — <em>pick a perk</em></div>
+        <div id="draft-cards"></div>
+        <div id="draft-hint">click or press <b>1</b> / <b>2</b> / <b>3</b></div>
+      </div>
+
+      <div id="hud-top-center">
+        <div id="boss-bar" class="hidden">
+          <div id="boss-name">DEREK KROHN — HEAD OF FINANCE</div>
+          <div class="bar boss"><div id="boss-bar-fill" class="bar-fill"></div></div>
+        </div>
+        <div id="event-bar" class="hidden">
+          <div id="event-label">CALLING ELEVATOR…</div>
+          <div class="bar event"><div id="event-bar-fill" class="bar-fill"></div></div>
+        </div>
+        <div id="announce"></div>
+      </div>
+
+      <div id="hud-top-right">
+        <div id="hud-difficulty">
+          <div id="difficulty-label">PROBATION</div>
+          <div id="difficulty-pips"></div>
+        </div>
+        <div id="hud-money">$ 0</div>
+        <div id="hud-budget">⬛ 0 <small>DEPT BUDGET</small></div>
+      </div>
+
+      <div id="nav-arrow" class="hidden">▲<small>ELEVATOR</small></div>
+
+      <div id="hud-bottom-left">
+        <div id="hud-class-name">THE INTERN</div>
+        <div class="bar hp"><div id="hp-bar-fill" class="bar-fill"></div><div id="hp-text">100 / 100</div></div>
+        <div class="bar xp"><div id="xp-bar-fill" class="bar-fill"></div><div id="level-text">LV 1</div></div>
+      </div>
+
+      <div id="hud-bottom-right">
+        <div id="ammo-box">
+          <span id="ammo-count">14</span><span id="ammo-mag">/ 14</span>
+          <div id="ammo-note" class="hidden">RELOADING…</div>
+        </div>
+        <div id="ability-row">
+          <div class="ability pocket" id="pocket-throw"><span class="ability-icon">🧨</span><span class="ability-key">G</span><span class="pocket-count"></span></div>
+          <div class="ability pocket" id="pocket-consume"><span class="ability-icon">🥪</span><span class="ability-key">F</span><span class="pocket-count"></span></div>
+          <div class="ability" id="ability-primary"><span class="ability-icon">🖱️</span><span class="ability-key">LMB</span><div class="cd-sweep"></div></div>
+          <div class="ability" id="ability-secondary"><span class="ability-icon">✨</span><span class="ability-key">RMB</span><div class="cd-sweep"></div></div>
+          <div class="ability" id="ability-dash"><span class="ability-icon">☕</span><span class="ability-key">Q</span><div class="cd-sweep"></div></div>
+        </div>
+        <div id="item-tray"></div>
+      </div>
+
+      <div id="inv-root" class="hidden">
+        <div id="inv-panel">
+          <h3>🗄️ YOUR DESK <small>(Tab to close)</small></h3>
+          <div id="inv-slots"></div>
+          <div id="inv-bag-label">BAG</div>
+          <div id="inv-bag"></div>
+        </div>
+      </div>
+
+      <div id="crosshair" data-style="reticle" data-state="idle" aria-hidden="true"></div>
+      <div id="damage-indicator" class="hidden" aria-hidden="true"></div>
+      <div id="hitmarker">✕</div>
+      <div id="interact-prompt" class="hidden"></div>
+      <div id="damage-vignette"></div>
+      <div id="latch-overlay" class="hidden">MASH <b>SPACE</b> — THE MICROMANAGER HAS YOU</div>
+      <div id="toast-stack"></div>
+      <div id="team-list"></div>
+    </div>
+
+    <!-- ============ MENUS ============ -->
+    <div id="menu-root"></div>
+    <div id="fade-screen"></div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

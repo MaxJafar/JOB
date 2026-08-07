@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" shape-rendering="geometricPrecision">
+    <polygon points="0,0 49,0 64,15 64,64 0,64" fill="#2A3242" opacity="1"/>
+    <polyline points="0,0 49,0 64,15 64,64 0,64 0,0" stroke="#38E1FF" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    <path d="M 12 50 H 21" stroke="#38E1FF" stroke-width="2" opacity="1"/>
+    <path d="M 51 3 L 61 12" stroke="#38E1FF" stroke-width="1" opacity="1"/>
+    <path d="M 18 13 H 28" stroke="#38E1FF" stroke-width="1" opacity=".65"/>
+    </svg>
