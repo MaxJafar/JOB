@@ -1,5 +1,5 @@
 // ============ menu screens ============
-import { CLASSES } from '../game/classes.js';
+import { CLASSES, CLASS_BY_KEY } from '../game/classes.js';
 import { PERKS, perkCost } from '../game/meta.js';
 import { formatTime } from '../core/utils.js';
 
@@ -82,8 +82,84 @@ export class Menus {
       if (a === 'back') { if (isLobby) this.showLobby(); else this.showTitle(); }
       if (a === 'go') {
         if (isLobby) this.game.lobbyPickAndStart(this.selectedClass);
-        else this.game.startRun(this.selectedClass);
+        else this.showPartySetup();
       }
+    });
+  }
+
+  // ---------- party setup: solo, or a squad of bots ----------
+  // The reason this screen exists: playtesting 4-player pacing otherwise needs
+  // three other humans. Bots fill the slots so party dynamics — aggro spread,
+  // revive tension, Director team-spread — can be read solo.
+  showPartySetup() {
+    this.clear();
+    const party = this.game.botParty;
+    const picked = party.roster.map((r) => r.classKey);
+    const s = document.createElement('div');
+    s.className = 'screen';
+
+    const slotCard = (i) => {
+      const key = picked[i] ?? null;
+      const c = key ? CLASS_BY_KEY[key] : null;
+      const opts = CLASSES.map((cc) => `<option value="${cc.key}"${cc.key === key ? ' selected' : ''}>${cc.icon} ${cc.name}</option>`).join('');
+      return `
+        <div class="bot-slot ${c ? 'on' : ''}" data-slot="${i}">
+          <div class="bs-head">TEAMMATE ${i + 1}</div>
+          <div class="bs-face">${c ? c.icon : '➕'}</div>
+          <select class="bs-pick" data-slot="${i}">
+            <option value=""${key ? '' : ' selected'}>— EMPTY —</option>
+            ${opts}
+          </select>
+          <div class="bs-note">${c ? c.title : 'no teammate in this slot'}</div>
+        </div>`;
+    };
+
+    const you = CLASS_BY_KEY[this.selectedClass];
+    s.innerHTML = `
+      <h2>ASSEMBLE THE <em>TEAM</em></h2>
+      <p class="sub">Bots fill the empty desks so you can playtest a full shift alone.
+         They fight with the real kits, take real damage, and go down until the next floor.</p>
+      <div class="party-row">
+        <div class="bot-slot you">
+          <div class="bs-head">YOU</div>
+          <div class="bs-face">${you.icon}</div>
+          <div class="bs-name">${you.name}</div>
+          <div class="bs-note">${you.title}</div>
+        </div>
+        ${[0, 1, 2].map(slotCard).join('')}
+      </div>
+      <div class="menu-btns" style="flex-direction:row; width:auto; gap:12px; flex-wrap:wrap; justify-content:center;">
+        <button class="mbtn" data-a="back">← ROLE</button>
+        <button class="mbtn" data-a="solo">SOLO SHIFT</button>
+        <button class="mbtn" data-a="fill">AUTO-FILL SQUAD</button>
+        <button class="mbtn primary" data-a="go">START SHIFT →</button>
+      </div>`;
+    root().appendChild(s);
+
+    const commit = () => {
+      const keys = [...s.querySelectorAll('.bs-pick')].map((el) => el.value).filter(Boolean);
+      party.setRoster(keys);
+    };
+
+    s.addEventListener('change', (e) => {
+      if (!e.target.classList.contains('bs-pick')) return;
+      this.click();
+      commit();
+      this.showPartySetup();       // redraw so the icon and title track the pick
+    });
+
+    s.addEventListener('click', (e) => {
+      const a = e.target?.dataset?.a;
+      if (!a) return;
+      this.click();
+      if (a === 'back') { this.showClassSelect(false); return; }
+      if (a === 'solo') { party.setRoster([]); this.game.startRun(this.selectedClass); return; }
+      if (a === 'fill') {
+        party.setRoster(party.suggestRoster(3, this.selectedClass));
+        this.showPartySetup();
+        return;
+      }
+      if (a === 'go') { commit(); this.game.startRun(this.selectedClass); }
     });
   }
 

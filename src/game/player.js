@@ -1216,6 +1216,20 @@ export class RemotePlayer {
     this.radius = 0.45;
     this.buffer = [];      // interpolation snapshots {t, x,y,z,yaw}
     this.yaw = state.yaw || 0;
+    // Derived from the interpolated motion each frame. Bosses read teammate
+    // velocity to LEAD their shots (bosses.js atkColdCall); without it the lead
+    // term is undefined and the prediction lands on NaN, so bosses fire at the
+    // world origin instead of at the teammate.
+    this.vel = new THREE.Vector3();
+    // Status fields the enemy roster writes onto whatever it hits. Declared so
+    // an enemy write never silently creates a property on the wrong shape, and
+    // so `(t.gooT ?? 0) > 0` in pickTarget reads a real value.
+    this.gooT = 0;
+    this.slowT = 0;
+    this.gooResist = false;
+    this.latch = null;
+    this.latchMash = 0;
+    this.tether = null;
 
     const def = CLASS_BY_KEY[this.classKey] ?? CLASS_BY_KEY.intern;
     const person = makePerson({
@@ -1260,6 +1274,46 @@ export class RemotePlayer {
 
   get centerPos() { return _v3.set(this.pos.x, this.pos.y + 1.0, this.pos.z); }
 
+  // ---- combat verbs ----
+  // These are NOT optional. `pickTarget()` selects from livePlayers(), which
+  // includes remote teammates, and roughly seventeen call sites across
+  // enemies.js and bosses.js then call `target.damage(...)` with no guard. A
+  // RemotePlayer without this method throws TypeError inside the enemy update
+  // loop the first time any enemy melees a human teammate — a hard crash in real
+  // co-op. It survived testing only because spawns anchor to game.player
+  // (director.js pickSpawnPos) and targeting is nearest, so on the host the
+  // local player is *usually* nearest. Usually is not always.
+  //
+  // Authority: a remote player's HP belongs to THEIR client. The host must not
+  // mutate it locally — it relays, and the owning client applies it. That is the
+  // same path game.explode() already uses for area damage.
+
+  /** @param {number} amount @param {THREE.Vector3|null} source @param {object} opts */
+  damage(amount, source = null, _opts = {}) {
+    if (this.dead || !(amount > 0)) return;
+    const net = this.game.net;
+    if (net?.connected && net.isHost) {
+      net.sendEvent({ k: 'pdmg', v: amount, x: source?.x ?? this.pos.x, z: source?.z ?? this.pos.z }, this.id);
+    }
+    // No local HP write: the authoritative value arrives back in the next
+    // pstate snapshot. Writing here would fight that and make the health bar
+    // flicker between the predicted and the real value.
+  }
+
+  applyStun(dur, fromPos = null) {
+    const net = this.game.net;
+    if (net?.connected && net.isHost) {
+      net.sendEvent({ k: 'pstun', v: dur, x: fromPos?.x ?? this.pos.x, z: fromPos?.z ?? this.pos.z }, this.id);
+    }
+  }
+
+  applyShock(dur) {
+    const net = this.game.net;
+    if (net?.connected && net.isHost) net.sendEvent({ k: 'pshock', v: dur }, this.id);
+  }
+
+  heal() { /* owned by their client; nothing to do here */ }
+
   pushState(s, now) {
     this.buffer.push({ t: now, x: s.x, y: s.y, z: s.z, yaw: s.yaw });
     if (this.buffer.length > 20) this.buffer.shift();
@@ -1295,7 +1349,10 @@ export class RemotePlayer {
       tx = last.x; ty = last.y; tz = last.z; tyaw = last.yaw;
     } else return;
     const prevX = this.pos.x, prevZ = this.pos.z;
+    const prevY = this.pos.y;
     this.pos.set(tx, ty, tz);
+    const invDt = 1 / Math.max(dt, 0.001);
+    this.vel.set((tx - prevX) * invDt, (ty - prevY) * invDt, (tz - prevZ) * invDt);
     this.yaw = tyaw;
     this.mesh.position.copy(this.pos);
     this.mesh.rotation.y = this.yaw;

@@ -27,6 +27,7 @@ import { PerformanceGovernor } from '../render/governor.js';
 import { InstancingManager } from '../render/instancing.js';
 import { DecalSystem } from '../render/decals.js';
 import { VFXManager } from '../render/vfx.js';
+import { BotParty } from './bot/party.js';
 import { Telemetry } from '../core/telemetry.js';
 import { crashHandler } from '../core/errors.js';
 import { debugEnabled } from '../dev/enabled.js';
@@ -83,6 +84,7 @@ export class Game {
     this.decals = new DecalSystem(this.instancing);  // 150 blood splats = 1 draw call
     this.vfx = new VFXManager(this.scene);            // named effects, one registry
     this.perf = new PerformanceGovernor(this);
+    this.botParty = new BotParty(this);   // AI teammates, so a 4-player party is testable solo
     this.timestep = new FixedTimestep({ hz: 60, maxSubSteps: 5 });
     this.frameStats = new FrameStats();
     this.telemetry = new Telemetry({ enabled: this.meta.settings.telemetry !== false });
@@ -357,6 +359,7 @@ export class Game {
     for (const e of this.enemies) e.disposeMesh();
     this.enemies.length = 0;
     this.enemyById.clear();
+    this.botParty.despawn();      // removes them from remotePlayers first
     for (const [, r] of this.remotePlayers) r.dispose();
     this.remotePlayers.clear();
     this.projectiles.clear();
@@ -490,6 +493,9 @@ export class Game {
       this.player.breakTether(true);
       if (this.player.dead) { this.player.dead = false; this.player.hp = this.player.stats.maxHp * 0.5; this.player.mesh.visible = true; }
     }
+    // Bots respawn with the elevator on every floor — the same rule downed
+    // humans get (onPlayerDeath holds them until the next floor).
+    this.botParty.spawnForFloor();
     this.telemetry.floorEntered(idx, this.floorDef.key, this.runTime);
     this.hud.setFloor(this.floorDef, this.loopCount);
     this.hud.announce(`${this.floorDef.name} — ${this.floorDef.sub}`, 3);
@@ -554,16 +560,24 @@ export class Game {
 
   onPlayerDeath(p) {
     if (p !== this.player || this.victoryLap) return;
-    // co-op: if a teammate lives, wait for next floor
-    if (this.net.connected && this.net.inRun) {
-      const anyAlive = [...this.remotePlayers.values()].some((r) => !r.dead);
-      if (anyAlive) {
-        this.hud.toast('YOU ARE DOWN — respawning next floor', 'warn');
-        this.player.mesh.visible = false;
-        return;
-      }
+    // A live teammate — human OR bot — keeps the run going until the next floor.
+    // Bots counting here is the point: it is what makes a solo playtest feel
+    // like a party rather than a solo run with extra damage.
+    const anyAlive = [...this.remotePlayers.values()].some((r) => !r.dead);
+    if (anyAlive && ((this.net.connected && this.net.inRun) || this.botParty.aliveCount > 0)) {
+      this.hud.toast('YOU ARE DOWN — respawning next floor', 'warn');
+      this.player.mesh.visible = false;
+      return;
     }
     this.endRun(false);
+  }
+
+  /** A bot went down; end the run only if the whole party is out. */
+  checkPartyWipe() {
+    if (this.runOver || !this.player) return;
+    if (!this.player.dead) return;
+    const anyAlive = [...this.remotePlayers.values()].some((r) => !r.dead);
+    if (!anyAlive) this.endRun(false);
   }
 
   endRun(won) {
@@ -2053,7 +2067,11 @@ export class Game {
       case 'grant': this.player?.addMoney(e.money); this.player?.addXp(e.xp); break;
       case 'item': { const item = ITEM_BY_ID[e.id]; if (item) this.player?.addItem(item); break; }
       case 'dmg': this.effects.number(_v1.set(e.x, e.y, e.z).clone(), e.v, { crit: e.crit }); this.hud.hit(e.crit); break;
+      // The host relays hits it resolved against us; we own our own HP, so this
+      // is where a remote hit actually lands. See RemotePlayer.damage().
       case 'pdmg': this.player?.damage(e.v, _v1.set(e.x, 0, e.z)); break;
+      case 'pstun': this.player?.applyStun?.(e.v, _v1.set(e.x, 0, e.z)); break;
+      case 'pshock': this.player?.applyShock?.(e.v); break;
       case 'latch': this.hud.setLatch(!!e.on); break;
       case 'boss': { const d = BOSS_DEFS[e.key]; if (d) { this.hud.showBoss(d.name, d.title); this.audio.sfx('roar'); } break; }
       case 'bosshp': this.hud.updateBoss(e.f); break;
