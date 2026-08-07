@@ -30,6 +30,8 @@ export class DebugPanel {
       entities: 0, enemies: 0, gibs: 0, drawCalls: 0, tris: 0,
       physMs: 0, postMs: 0, simSteps: 0,
       intensity: 0, pacing: '—', credits: 0, coeff: 0, stage: '—',
+      pressure: 0, fatigue: 0, spawnBudget: 0, specialChance: 0, lootGen: 1, restDur: 0,
+      qualityTier: '—', lodTiers: '—', aiSkipped: 0, instances: 0, callsSaved: 0,
       timeScale: 1, god: false, noclipSpeed: 1,
       spawnEnemy: Object.keys(ENEMY_DEFS)[0],
       spawnCount: 1,
@@ -95,6 +97,11 @@ export class DebugPanel {
     perf.addBinding(s, 'gibs', { readonly: true, label: 'gibs' });
     perf.addBinding(s, 'voicesPlayed', { readonly: true, label: 'voices/s' });
     perf.addBinding(s, 'voicesDropped', { readonly: true, label: 'voices cut' });
+    perf.addBinding(s, 'qualityTier', { readonly: true, label: 'quality tier' });
+    perf.addBinding(s, 'lodTiers', { readonly: true, label: 'AI LOD n/m/f/d' });
+    perf.addBinding(s, 'aiSkipped', { readonly: true, label: 'AI ticks saved' });
+    perf.addBinding(s, 'instances', { readonly: true, label: 'instances' });
+    perf.addBinding(s, 'callsSaved', { readonly: true, label: 'calls saved' });
 
     // ---- director ----
     const dir = pane.addFolder({ title: '🎬 Director', expanded: true });
@@ -103,6 +110,14 @@ export class DebugPanel {
     dir.addBinding(s, 'credits', { readonly: true });
     dir.addBinding(s, 'coeff', { readonly: true, label: 'difficulty' });
     dir.addBinding(s, 'stage', { readonly: true });
+    // Director 2.0 — a pacing engine you cannot watch is a pacing engine you
+    // cannot tune.
+    dir.addBinding(s, 'pressure', { readonly: true, view: 'graph', min: 0, max: 1 });
+    dir.addBinding(s, 'fatigue', { readonly: true, view: 'graph', min: 0, max: 1 });
+    dir.addBinding(s, 'spawnBudget', { readonly: true, label: 'pop budget' });
+    dir.addBinding(s, 'specialChance', { readonly: true, label: 'special %' });
+    dir.addBinding(s, 'lootGen', { readonly: true, label: 'loot generosity' });
+    dir.addBinding(s, 'restDur', { readonly: true, label: 'rest (s)' });
     for (const [label, fn] of [
       ['Force horde', () => g.director?.triggerAlarmHorde(null)],
       ['Force PEAK', () => g.director?.setPacing('PEAK', 25)],
@@ -292,6 +307,15 @@ export class DebugPanel {
     s.voicesPlayed = g.voices?.stats.played ?? 0;
     s.voicesDropped = g.voices?.stats.dropped ?? 0;
 
+    const lod = g.enemyLOD?.summary();
+    if (lod) {
+      s.lodTiers = `${lod.near}/${lod.mid}/${lod.far}/${lod.distant}`;
+      s.aiSkipped = lod.skipped;
+    }
+    const inst = g.instancing?.stats();
+    if (inst) { s.instances = inst.instances; s.callsSaved = inst.drawCallsSaved; }
+    s.qualityTier = g.perf?.tier ?? '—';
+
     const d = g.director;
     if (d) {
       s.intensity = Math.round(d.intensity);
@@ -299,6 +323,13 @@ export class DebugPanel {
       s.credits = Math.round(d.credits);
       s.coeff = +d.coeff.toFixed(2);
       s.stage = d.stage.label;
+      const sig = d.signals ?? {};
+      s.pressure = +(d.model?.pressure ?? 0).toFixed(2);
+      s.fatigue = +(d.model?.fatigue ?? 0).toFixed(2);
+      s.spawnBudget = sig.spawnBudget ?? 0;
+      s.specialChance = +(sig.specialChance ?? 0).toFixed(3);
+      s.lootGen = sig.lootGenerosity ?? 1;
+      s.restDur = sig.restDuration ?? 0;
     }
     s.budget = g.budget ?? 0;
     this.pane.refresh();

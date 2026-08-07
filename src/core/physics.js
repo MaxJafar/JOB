@@ -60,6 +60,10 @@ export class PhysicsWorld {
     this.colliderByOwner = new Map(); // level collider record -> rapier collider
     this.accum = 0;
     this.step = 1 / 60;
+    // Live budget, driven by PerformanceGovernor. Gibs are the first thing to
+    // give when the frame time rises: nobody has ever refunded a game because
+    // the severed arms despawned slightly sooner.
+    this.maxGibs = GIB_CAP;
     this.stats = { bodies: 0, stepMs: 0 };
   }
 
@@ -152,7 +156,8 @@ export class PhysicsWorld {
    */
   addGib(mesh, { vel = null, angVel = null, ttl = 2.2 } = {}) {
     if (!this.ready) return null;
-    if (this.gibs.length >= GIB_CAP) this._retireGib(0);
+    const cap = Math.min(GIB_CAP, this.maxGibs);
+    while (this.gibs.length >= cap) this._retireGib(0);
 
     if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
     _box.copy(mesh.geometry.boundingBox);

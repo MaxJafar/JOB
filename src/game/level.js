@@ -644,7 +644,7 @@ export class Level {
 
   // ================= shared helpers (API preserved) =================
   placeElevator(x, z, rotY, P, isExit) {
-    const g = makeElevator(P, this.def?.elevatorModel ?? null);
+    const g = makeElevator(P);
     g.position.set(x, 0, z);
     g.rotation.y = rotY;
     this.group.add(g);
@@ -766,6 +766,31 @@ export class Level {
    * (1.35u) because that is what "can it see me" actually means: waist-high
    * furniture blocks a crawling roomba, not a standing drone.
    */
+  /**
+   * Height of the highest walkable surface under (x, z) that is at or below
+   * `maxY`. Returns 0 for bare floor.
+   *
+   * `resolveCircleAABB` already lets an entity whose feet are above a collider's
+   * top pass through it horizontally — it just had nothing to stand on, so
+   * everything fell back to y = 0. Sampling here is what turns that latent
+   * behaviour into vaulting onto desks and stepping over thresholds.
+   *
+   * @param {number} maxY highest surface to consider (feet + step height)
+   * @param {number} r horizontal probe radius
+   */
+  groundHeightAt(x, z, maxY = 1e9, r = 0.3) {
+    let best = 0;
+    for (const c of this.colliders) {
+      if (c.disabled) continue;
+      const h = c.h ?? WALL_H;
+      if (h <= best || h > maxY) continue;
+      if (x < c.minX - r || x > c.maxX + r) continue;
+      if (z < c.minZ - r || z > c.maxZ + r) continue;
+      best = h;
+    }
+    return best;
+  }
+
   losBlocked(ax, az, bx, bz) {
     const bvh = this.game?.bvh;
     if (bvh?.bvh) return bvh.segmentBlocked(ax, 1.35, az, bx, 1.35, bz);

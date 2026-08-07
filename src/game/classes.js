@@ -15,7 +15,6 @@ export const CLASSES = [
     weapon: 'stapler',
     passive: 'Eager To Learn — +15% XP gain.',
     xpBonus: 1.15,
-    model: 'intern',
     look: { shirt: 0xd9dde3, pants: 0x51586b, tie: 0xc03030, accessories: [] },
     primary: {
       name: 'Staple Shot', icon: '📎', desc: 'Snappy semi-auto staples.', cd: 0.21, mag: 14, reload: 1.0,

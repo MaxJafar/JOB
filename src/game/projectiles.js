@@ -2,6 +2,9 @@
 import * as THREE from 'three';
 import { segPointDist3D, nextId } from '../core/utils.js';
 
+const _decalUp = new THREE.Vector3(0, 1, 0);
+const _decalDir = new THREE.Vector3();
+
 const geoCache = new Map();
 function geo(kind) {
   if (geoCache.has(kind)) return geoCache.get(kind);
@@ -152,7 +155,9 @@ export class Projectiles {
       else p.mesh.lookAt(this._prev);
 
       // world collision
-      if (p.pos.y <= (p.radius * 0.5) || level.pointBlocked(p.pos.x, p.pos.y, p.pos.z)) {
+      const hitFloor = p.pos.y <= (p.radius * 0.5);
+      if (hitFloor || level.pointBlocked(p.pos.x, p.pos.y, p.pos.z)) {
+        p._hitFloor = hitFloor;
         // grenades bounce until the fuse runs out
         if (p.kind === 'grenade' && p.ttl > 0.05) {
           if (p.pos.y <= p.radius * 0.5) {
@@ -240,6 +245,17 @@ export class Projectiles {
     }
     const colors = { coffee: 0x6b4423, orb: 0xffc23f, brand: 0xff2f9e, book: 0x7a4c28 };
     game.effects.burst(p.pos, { color: colors[p.kind] ?? 0xd8dde6, n: p.aoe > 0 ? 14 : 5, speed: p.aoe > 0 ? 7 : 3, size: 0.1, ttl: 0.4 });
+
+    // Leave a mark. Instanced and hard-capped, so a ten-minute firefight costs
+    // one draw call per decal kind no matter how much lead went downrange.
+    if (game.decals && !p.cosmetic) {
+      const kind = p.aoe > 0 ? 'scorch' : (p.kind === 'coffee' ? 'coffee' : 'bullet');
+      // floor hits face up; wall hits use the surface the BVH reports
+      const normal = p._hitFloor
+        ? _decalUp
+        : (game.bvh?.raycast(this._prev, _decalDir.copy(p.pos).sub(this._prev).normalize(), 4)?.normal ?? _decalUp);
+      game.decals.spawn(kind, p.pos, normal);
+    }
     this.remove(p);
   }
 }

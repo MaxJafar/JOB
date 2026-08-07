@@ -6,8 +6,10 @@
 > Grounded in [DESIGN_DIGEST.md](DESIGN_DIGEST.md) — 195 principles mined from
 > Schell's *The Art of Game Design* and Killick's *Game Design: How Games Are Made*,
 > distilled to 9 workstreams. Digest references below look like *(D 3.2)*.
-> Asset production runs in parallel via [CODEX_ASSET_PACK.md](CODEX_ASSET_PACK.md) (2D/UI)
-> and [MESHY_ASSET_PACK.md](MESHY_ASSET_PACK.md) (3D).
+> Asset production runs in parallel via [CODEX_ASSET_PACK.md](CODEX_ASSET_PACK.md) (2D/UI).
+> **3D characters: generative services are out.** Meshy was piloted 2026-08-07 and
+> rejected on art quality — the packet, scripts and generated GLBs were removed.
+> User supplies T-pose character designs; the 3D approach is being chosen (see v0.7).
 
 ---
 
@@ -177,8 +179,10 @@ tiers; Electron context isolation for the steamworks bridge; roster freeze
 
 ### v0.7 — "GLOW UP" (art, animation, juice) — L
 *User request: unique triangular low-poly characters, fluid animations, hit effects, SFX, vibrant arenas.*
-- [ ] **Meshy pipeline** (see MESHY_ASSET_PACK): 6 archetypes + 9 specials + 4 bosses,
-      faceted triangular style, auto-rigged GLB → `GLTFLoader` + `AnimationMixer`
+- [ ] **Character art pipeline — approach TBD.** Target look: FF7 × Risk of Rain,
+      chunky low-poly with real silhouettes, explicitly NOT boxy/Minecraft and NOT
+      AI-generated. User supplies T-pose designs; we build from those.
+      6 archetypes + 9 specials + 4 bosses → skinned mesh + `AnimationMixer`
       state machine (idle↔run blend, attack interrupts, 80–140ms crossfades).
 - [ ] Animation law *(D 5.2, 5.5)*: input→response <100ms, basic attacks fire frame-1,
       snappy exaggerated poses (never mocap-smooth), elites strut / interns scurry.
@@ -265,12 +269,12 @@ chassis × modules × gear × drafts.
 | Track | Owner | Packet | Feeds |
 |---|---|---|---|
 | 2D/UI assets (logo, HUD kit, icons, capsules) | **Codex** | [CODEX_ASSET_PACK.md](CODEX_ASSET_PACK.md) | v0.8 HUD, v1.0 store |
-| 3D characters/gear/props | **Meshy** (user triggers generation, we integrate) | [MESHY_ASSET_PACK.md](MESHY_ASSET_PACK.md) | v0.7 |
+| 3D characters/gear/props | User supplies T-pose designs; build approach TBD (no generative services) | — | v0.7 |
 | Design tuning & balance | Claude + telemetry | /data JSON + digest | every version |
 | Playtests | User + cohorts | question lists per version | gates |
 
-**Meshy note:** the packet is ready — say the word and we start with the BRUISER +
-one special (SECURITY GUARD) as pipeline pilots before batch-generating the rest.
+**3D note:** Meshy was piloted and rejected — output was smooth, washed-out and
+off-brief. No generative 3D services. User provides T-pose character designs.
 
 ---
 
@@ -282,7 +286,7 @@ one special (SECURITY GUARD) as pipeline pilots before batch-generating the rest
 | 2 | three.js can't hold 60fps at max density in netcode co-op | v0.2 stress scene | lower caps, instanced meshes, simplify shadows |
 | 3 | 6 archetypes × modules × gear produces broken/boring builds | v0.4 telemetry + card-mock the economy in an afternoon | shrink module pool, curate combos |
 | 4 | Self-hosted co-op friction kills session starts | measure lobby completion rate | prioritize Steam SDR earlier |
-| 5 | Meshy rigs fail QA / animations feel mushy | v0.7 pilot (2 models) | keep upgraded procedural rigs; Meshy for statics only |
+| 5 | Character art never reaches the target look | v0.7 pilot (2 models) before any batch | keep upgraded procedural rigs; ship on silhouette, not detail |
 | 6 | Solo dev bandwidth | 50% rule already applied | cut-safe list is the contract |
 
 ---
@@ -291,8 +295,8 @@ one special (SECURITY GUARD) as pipeline pilots before batch-generating the rest
 
 1. **v0.2 FOUNDATIONS build** — JSON tuning + debug panel + telemetry + sandbox floor.
 2. Codex starts **Tier 1** of the asset pack (logo + HUD kit).
-3. Meshy pilot: **BRUISER** + **SECURITY GUARD** prompts from the packet → user runs
-   generation → we integrate via GLTF pipeline spike.
+3. Character art: pick the build approach, then pilot **BRUISER** + **SECURITY GUARD**
+   from the user's T-pose designs before committing to the full roster.
 4. Beat-chart one full run on paper (enemies/loot/mood per floor) to spot progression
    clumps before v0.3 *(Killick's beat chart)*.
 5. First scripted playtest with the question list: "Do players detour for KPIs?

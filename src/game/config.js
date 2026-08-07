@@ -69,7 +69,6 @@ export const FLOORS = [
   },
   {
     key: 'finance', name: 'FINANCE', sub: 'FLOOR 12', size: [66, 54],
-    elevatorModel: 'elevator_finance',   // Meshy facade; falls back to trim box
     palette: {
       floor: 0x39414f, carpet: 0x2e3542, wall: 0x8a94a6, accent: 0x27ae60,
       trim: 0x1f2530, fog: 0x232a36, sky: 0x87a6c4, light: 0xfff2d9, desk: 0x8c6b4f,

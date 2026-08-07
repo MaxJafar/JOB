@@ -8,6 +8,7 @@ import { box, cyl } from './props.js';
 import { computeItemMods } from './items.js';
 import { upgradeMods } from './upgrades.js';
 import { clamp, lerp, damp, chance, dist2D } from '../core/utils.js';
+import { PlayerMotor } from '../player/motor.js';
 
 const _v1 = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -22,14 +23,17 @@ export class Player {
     this.classDef = CLASS_BY_KEY[classKey];
     this.classKey = classKey;
 
-    this.pos = new THREE.Vector3(0, 0, 10);
-    this.vel = new THREE.Vector3();
+    // Movement lives in PlayerMotor. `pos` and `vel` are the MOTOR's vectors,
+    // shared by reference so the ~60 existing `player.pos` call sites keep
+    // working and there is still exactly one source of truth.
+    this.radius = 0.45;
+    this.motor = new PlayerMotor(game, { radius: this.radius, height: 1.8, stepHeight: 0.55 });
+    this.pos = this.motor.pos;
+    this.vel = this.motor.vel;
+    this._bindMotorEvents();
+
     this.yaw = Math.PI;                // face -z... adjusted at spawn
     this.pitch = -0.08;
-    this.radius = 0.45;
-    this.onGround = true;
-    this.coyote = 0;
-    this.jumpBuffer = 0;
     this.dead = false;
 
     // combat state
@@ -41,7 +45,6 @@ export class Player {
     this.shotCounter = 0;
     this.beamHeat = 0;
     this.coffeeBuffT = 0;
-    this.momentumT = 0;
     this.hydratedThisFloor = false;
     this.kills = 0;
     // pockets & wardrobe
@@ -58,10 +61,7 @@ export class Player {
     this.hotRate = 0;
     this.primaryCd = 0;
     this.secondaryCd = 0;
-    this.dashCd = 0;
-    this.dashT = 0;
     this.iframes = 0;
-    this.slideT = 0;
     this.blocking = false;
     this.attackAnimT = 0;
     this.swingSide = 1;
@@ -75,6 +75,7 @@ export class Player {
     this.hurtFlash = 0;
     this.beamSfxT = 0;
     this.stepT = 0;
+    this.landDip = 0;       // procedural landing compression, fed by motor.onLand
 
     this.camMode = 'tp';    // 'fp' | 'tp'
     this.camBlend = 1;      // 0 = fp, 1 = tp
@@ -85,7 +86,6 @@ export class Player {
     // ---- character mesh ----
     const look = this.classDef.look;
     const person = makePerson({
-      model: this.classDef.model,
       skin: 0xE8B89B, shirt: look.shirt, pants: look.pants, tie: look.tie,
       hair: look.hair ?? 0x3a2a1a, accessories: look.accessories,
     });
@@ -118,6 +118,52 @@ export class Player {
 
   get centerPos() { return _v3.set(this.pos.x, this.pos.y + 1.0, this.pos.z); }
   get eyeY() { return this.slideT > 0 ? 1.05 : 1.62; }
+
+  // ---- motor state, surfaced under the old field names ----
+  // The rest of the class, the HUD, the netcode and the abilities all read
+  // these. Delegating rather than mirroring means they can never drift.
+  get onGround() { return this.motor.onGround; }
+  set onGround(v) { this.motor.onGround = v; }
+  get dashT() { return this.motor.dashT; }
+  set dashT(v) { this.motor.dashT = v; }
+  get dashCd() { return this.motor.dashCd; }
+  set dashCd(v) { this.motor.dashCd = v; }
+  get slideT() { return this.motor.slideT; }
+  set slideT(v) { this.motor.slideT = v; }
+  get momentumT() { return this.motor.momentumT; }
+  set momentumT(v) { this.motor.momentumT = v; }
+  get coyote() { return this.motor.coyote; }
+  set coyote(v) { this.motor.coyote = v; }
+  get jumpBuffer() { return this.motor.jumpBuffer; }
+  set jumpBuffer(v) { this.motor.jumpBuffer = v; }
+  get moveState() { return this.motor.state; }
+
+  /**
+   * All the juice stays here; the motor stays a pure solver. It reports what
+   * happened, this decides what that should look and sound like.
+   */
+  _bindMotorEvents() {
+    const g = this.game;
+    this.motor.onJump = (slideJump) => {
+      if (slideJump) g.effects.ring(this.pos, { color: 0xffffff, r1: 1.6, dur: 0.3, opacity: 0.4 });
+      g.audio.sfx('jump');
+    };
+    this.motor.onSlideStart = () => g.audio.sfx('slide');
+    this.motor.onDash = () => {
+      this.iframes = Math.max(this.iframes, TUNE.dashIFrames);
+      g.audio.sfx('dash');
+      g.effects.burst(this.pos.clone().setY(0.4), { color: 0xffffff, n: 8, speed: 3, size: 0.09, ttl: 0.3 });
+      this.detachLatch(true);   // dashing shakes off the micromanager
+    };
+    this.motor.onLand = (fallSpeed) => {
+      if (fallSpeed < 6) return;
+      // landing compression: the camera and the legs both feel the impact
+      g.audio.sfx('ui', { vol: Math.min(0.5, fallSpeed / 40) });
+      this.landDip = Math.min(0.22, fallSpeed / 90);
+      if (fallSpeed > 14) g.shake(Math.min(0.25, fallSpeed / 90));
+    };
+    this.motor.onStepUp = () => g.audio.sfx('ui', { vol: 0.12 });
+  }
 
   recomputeStats() {
     const c = this.classDef;
@@ -153,6 +199,9 @@ export class Player {
       moneyMult: mods.moneyMult * (c.moneyBonus ?? 1) * (1 + gear.moneyMult) * meta.moneyMult,
       xpMult: mods.xpMult * ups.xpMult * (1 + gear.xpMult) * (c.xpBonus ?? 1),
       dashCd: TUNE.dashCd * mods.dashCdMult * ups.dashCdMult,
+      // 0..0.9 — read by PlayerMotor.applyKnockback. Heavy archetypes and
+      // body gear should be able to stand their ground against a Charger.
+      knockbackResist: Math.min(0.9, (c.knockbackResist ?? 0) + (gear.knockbackResist ?? 0)),
       damageTakenMult: (c.damageTakenMult ?? 1) * (1 + gear.damageTakenMult),
       bleedChance: mods.bleedChance, bleedPower: mods.bleedPower,
       chainChance: mods.chainChance, chainCount: mods.chainCount,
@@ -308,18 +357,19 @@ export class Player {
   }
 
   // ---------- melee helpers ----------
-  coneHit({ range, arcDeg }) {
-    const out = [];
-    const fwd = _v1.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
-    const cosA = Math.cos((arcDeg / 2) * Math.PI / 180);
-    for (const e of this.game.enemies) {
-      if (e.dead) continue;
-      const d = dist2D(e.pos, this.pos);
-      if (d > range + e.radius) continue;
-      const to = _v2.set(e.pos.x - this.pos.x, 0, e.pos.z - this.pos.z).normalize();
-      if (d < 1.2 || fwd.dot(to) > cosA) out.push(e);
-    }
-    return out;
+  /**
+   * Every melee swing goes through the combat query layer, so it gets wall
+   * occlusion and nearest-first target ordering for free. Before this, a swing
+   * could reach through a cubicle wall — the arc test never asked about geometry.
+   */
+  coneHit({ range, arcDeg, maxTargets = 12 }) {
+    return this.game.combat.meleeArc({
+      origin: this.pos,
+      direction: _v1.set(Math.sin(this.yaw), 0, Math.cos(this.yaw)),
+      radius: range,
+      angle: arcDeg,
+      maxTargets,
+    });
   }
 
   meleeSwing({ range, arcDeg, mult, knockback }) {
@@ -556,9 +606,9 @@ export class Player {
     // timers
     this.primaryCd = Math.max(0, this.primaryCd - dt);
     this.secondaryCd = Math.max(0, this.secondaryCd - dt);
-    this.dashCd = Math.max(0, this.dashCd - dt);
     this.iframes = Math.max(0, this.iframes - dt);
     this.attackAnimT = Math.max(0, this.attackAnimT - dt);
+    // (dash cooldown is ticked inside the motor)
     this.recoilT = Math.max(0, this.recoilT - dt * 5);
     this.hurtFlash = Math.max(0, this.hurtFlash - dt);
     this.gooT = Math.max(0, this.gooT - dt);
@@ -577,20 +627,13 @@ export class Player {
     if (this.stats.regen > 0) this.heal(this.stats.regen * dt, true);
 
     // ---- movement ----
-    const fwdX = Math.sin(this.yaw), fwdZ = Math.cos(this.yaw);
-    const rightX = Math.sin(this.yaw - Math.PI / 2), rightZ = Math.cos(this.yaw - Math.PI / 2);
+    // Everything below is INTENT. The motor owns the physics: see
+    // src/player/motor.js for the accel model, collision sweep and step logic.
     let ix = 0, iz = 0;
     if (input.isDown('KeyW')) iz += 1;
     if (input.isDown('KeyS')) iz -= 1;
     if (input.isDown('KeyA')) ix -= 1;
     if (input.isDown('KeyD')) ix += 1;
-    const moving = ix !== 0 || iz !== 0;
-    let wishX = 0, wishZ = 0;
-    if (moving) {
-      const il = Math.hypot(ix, iz);
-      wishX = (fwdX * iz + rightX * ix) / il;
-      wishZ = (fwdZ * iz + rightZ * ix) / il;
-    }
 
     const sprinting = input.isDown('ShiftLeft') && iz > 0 && this.slideT <= 0 && !this.blocking;
     let speedCap = this.stats.moveSpeed * (sprinting ? this.stats.sprintMult : 1);
@@ -598,91 +641,35 @@ export class Player {
     if (this.latch) speedCap *= 0.5;
     if (this.slowT > 0) speedCap *= 0.55;
 
-    // slide
-    if (this.slideT > 0) {
-      this.slideT -= dt;
-      const fr = 1.8;
-      this.vel.x -= this.vel.x * fr * dt;
-      this.vel.z -= this.vel.z * fr * dt;
-    } else if ((input.pressed('ControlLeft') || input.pressed('KeyC')) && sprinting && this.onGround) {
-      this.slideT = TUNE.slideTime;
-      const boost = speedCap * TUNE.slideBoost;
-      this.vel.x = wishX * boost || fwdX * boost;
-      this.vel.z = wishZ * boost || fwdZ * boost;
-      game.audio.sfx('slide');
-    }
+    this.motor.knockbackResist = this.stats.knockbackResist ?? 0;
+    this.motor.setIntent({
+      moveX: ix, moveZ: iz, yaw: this.yaw,
+      sprint: sprinting,
+      jump: input.pressed('Space'),
+      slide: input.pressed('ControlLeft') || input.pressed('KeyC'),
+      dash: input.pressed('KeyQ'),
+      speedCap,
+      dashCd: this.stats.dashCd,
+      canAct: !this.dead,
+    });
+    this.motor.update(dt);
 
-    // dash
-    if (input.pressed('KeyQ') && this.dashCd <= 0 && this.dashT <= 0) {
-      this.dashT = TUNE.dashTime;
-      this.dashCd = this.stats.dashCd;
-      this.iframes = Math.max(this.iframes, TUNE.dashIFrames);
-      const dx = moving ? wishX : fwdX, dz = moving ? wishZ : fwdZ;
-      this.vel.x = dx * TUNE.dashSpeed;
-      this.vel.z = dz * TUNE.dashSpeed;
-      game.audio.sfx('dash');
-      game.effects.burst(this.pos.clone().setY(0.4), { color: 0xffffff, n: 8, speed: 3, size: 0.09, ttl: 0.3 });
-      this.detachLatch(true); // dashing shakes off the micromanager
-    }
-    if (this.dashT > 0) {
-      this.dashT -= dt;
-    } else if (this.slideT <= 0) {
-      // normal accel / friction
-      const accel = this.onGround ? TUNE.groundAccel : TUNE.airAccel;
-      if (moving) {
-        this.vel.x += wishX * accel * dt;
-        this.vel.z += wishZ * accel * dt;
-      }
-      const fr = this.onGround ? TUNE.groundFriction : 0.4;
-      if (!moving || Math.hypot(this.vel.x, this.vel.z) > speedCap) {
-        this.vel.x -= this.vel.x * Math.min(1, fr * dt);
-        this.vel.z -= this.vel.z * Math.min(1, fr * dt);
-      }
-      const hv = Math.hypot(this.vel.x, this.vel.z);
-      if (hv > speedCap && this.dashT <= 0 && this.momentumT <= 0) {
-        this.vel.x = (this.vel.x / hv) * speedCap;
-        this.vel.z = (this.vel.z / hv) * speedCap;
-      }
-    }
-    this.momentumT = Math.max(0, this.momentumT - dt);
-
-    // jump
-    this.coyote = this.onGround ? TUNE.coyoteTime : Math.max(0, this.coyote - dt);
-    this.jumpBuffer = input.pressed('Space') ? TUNE.jumpBuffer : Math.max(0, this.jumpBuffer - dt);
-    if (this.jumpBuffer > 0 && this.coyote > 0) {
-      this.vel.y = TUNE.playerJump;
-      // slide-jump: cash in the slide for a burst of momentum (skill tech)
-      if (this.slideT > 0) {
-        this.vel.x *= TUNE.slideJumpBoost;
-        this.vel.z *= TUNE.slideJumpBoost;
-        this.momentumT = TUNE.momentumTime;
-        game.effects.ring(this.pos, { color: 0xffffff, r1: 1.6, dur: 0.3, opacity: 0.4 });
-      }
-      this.onGround = false;
-      this.coyote = 0;
-      this.jumpBuffer = 0;
-      this.slideT = 0;
-      game.audio.sfx('jump');
-    }
-    // latch mash
+    // latch mash — Space does double duty while a Micromanager is riding you
     if (this.latch && input.pressed('Space')) {
       this.latchMash++;
       game.shake(0.15);
       if (this.latchMash >= 5) this.detachLatch(true);
     }
 
-    this.vel.y -= TUNE.gravity * dt;
-    this.pos.addScaledVector(this.vel, dt);
-    if (this.pos.y <= 0) { this.pos.y = 0; this.vel.y = 0; this.onGround = true; }
-    else this.onGround = false;
-    game.level.collideCircle(this.pos, this.radius, this.pos.y, 1.8);
-
     // footsteps
-    const hSpeed = Math.hypot(this.vel.x, this.vel.z);
+    const hSpeed = this.motor.speed;
     if (this.onGround && hSpeed > 2) {
       this.stepT -= dt * hSpeed;
       if (this.stepT <= 0) { this.stepT = 2.6; game.audio.sfx('ui', { vol: 0.25 }); }
     }
+
+    // procedural landing compression — decays into the camera/weapon rigs
+    if (this.landDip > 0) this.landDip = Math.max(0, this.landDip - dt * 1.6);
 
     // ---- abilities ----
     const cls = this.classDef;
@@ -887,7 +874,7 @@ export class RemotePlayer {
     this.yaw = state.yaw || 0;
 
     const def = CLASS_BY_KEY[this.classKey] ?? CLASS_BY_KEY.intern;
-    const person = makePerson({ model: def.model, shirt: def.look.shirt, pants: def.look.pants, tie: def.look.tie, accessories: def.look.accessories, hair: def.look.hair ?? 0x3a2a1a });
+    const person = makePerson({ shirt: def.look.shirt, pants: def.look.pants, tie: def.look.tie, accessories: def.look.accessories, hair: def.look.hair ?? 0x3a2a1a });
     this.mesh = person.root;
     this.parts = person.parts;
     this.parts.grip.add(makeHeldItem(def.weapon));

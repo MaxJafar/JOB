@@ -1,7 +1,6 @@
 // ============ low-poly office furniture factories ============
 // Every prop is built from primitives with flat shading. No external assets.
 import * as THREE from 'three';
-import { makeModelProp } from './models.js';
 
 const matCache = new Map();
 export function mat(color, { rough = 0.92, metal = 0.0, emissive = 0, emissiveIntensity = 1, transparent = false, opacity = 1 } = {}) {
@@ -276,23 +275,10 @@ export function makeChest(gold = false) {
   return g;
 }
 
-// `modelSlug` swaps the plain trim surround for a Meshy facade. Doors, cab,
-// sign and call button stay procedural — the elevator event animates them.
-export function makeElevator(palette, modelSlug = null) {
+export function makeElevator(palette) {
   const g = new THREE.Group();
   const W = 3.6, H = 3.2, D = 1.6;
-  const facade = modelSlug ? makeModelProp(modelSlug) : null;
-  const frame = facade || box(W + 0.8, H + 0.5, 0.35, palette.trim);
-  if (facade) {
-    // Fit the generated facade to the shaft opening, then sit it behind the doors.
-    const bb = new THREE.Box3().setFromObject(facade);
-    const fit = (H + 0.5) / Math.max(1e-3, bb.max.y - bb.min.y);
-    facade.scale.multiplyScalar(fit);
-    facade.position.set(0, -bb.min.y * fit, -D - 0.15);
-    facade.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-  } else {
-    frame.position.set(0, (H + 0.5) / 2, -D - 0.15);
-  }
+  const frame = box(W + 0.8, H + 0.5, 0.35, palette.trim); frame.position.set(0, (H + 0.5) / 2, -D - 0.15);
   const cab = new THREE.Mesh(new THREE.BoxGeometry(W, H, D), mat(0x161a22, { rough: 0.9 }));
   cab.position.set(0, H / 2, -D / 2 - 0.3);
   const cabLight = box(W - 0.6, 0.06, D - 0.5, 0xfff2cf, { emissive: 0xffe9b0, emissiveIntensity: 1.4 });

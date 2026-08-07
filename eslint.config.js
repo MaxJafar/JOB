@@ -11,7 +11,6 @@ export default [
     ignores: [
       'dist/**',
       'node_modules/**',
-      '.meshy-cache/**',
       'public/**',
       'assets/**',
       '**/*.min.js',

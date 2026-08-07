@@ -5,15 +5,24 @@
 import { TUNE, DIFF_STAGES, ANNOUNCER } from './config.js';
 import { ENEMY_DEFS, ELITE_MODS } from './enemies.js';
 import { weightedChoose, rand, chance, choose, clamp, dist2D } from '../core/utils.js';
+import { DirectorObservations, PressureModel } from '../ai/pressure.js';
 
 export class Director {
   constructor(game) {
     this.game = game;
+    // Director 2.0: the pacing state machine below is unchanged and still tuned,
+    // but what it SPENDS is now derived from a measured pressure signal rather
+    // than from the clock alone. See src/ai/pressure.js.
+    this.obs = new DirectorObservations();
+    this.model = new PressureModel();
+    this.signals = this.model.outputs;
     this.resetFloor(0);
     this.lastStageIdx = 0;
   }
 
   resetFloor(floorIndex) {
+    this.obs?.reset();
+    this.model?.reset();
     this.floorIndex = floorIndex;
     this.credits = 8;
     this.spawnTimer = 2;
@@ -57,14 +66,17 @@ export class Director {
   onPlayerDamaged(amount) {
     this.intensity = clamp(this.intensity + amount * 0.9, 0, 100);
     this.lastStressT = this.game.runTime;
+    this.obs.onDamage(amount);
   }
   onKillNear(pos) {
+    this.obs.onKill();
     const p = this.game.player;
     if (p && dist2D(p.pos, pos) < 11) {
       this.intensity = clamp(this.intensity + 3.2, 0, 100);
       this.lastStressT = this.game.runTime;
     }
   }
+  onPlayerDeath() { this.obs.onDeath(); }
   onGossipPop(targets) {
     this.game.hud.announce('THE GOSSIP SPREAD THE WORD', 2, true);
     this.game.audio.sfx('horde');
@@ -121,6 +133,20 @@ export class Director {
   update(dt) {
     const game = this.game;
     this.floorTime += dt;
+
+    // ---- observe → pressure → outputs (Director 2.0) ----
+    this.obs.sample(game, dt);
+    this.signals = this.model.update(this.obs, dt, {
+      table: game.floorDef?.table ?? [],
+      pacing: this.pacing,
+      coeff: this.coeff,
+    });
+    // Fatigue override: a player held at high pressure stops registering it, so
+    // force the relief valley rather than waiting for the pacing timer.
+    if (this.signals.wantRelief && this.pacing !== 'RELAX' && !this.eventMode && !game.lockdown) {
+      this.setPacing('RELAX', this.signals.restDuration);
+      this.model.fatigue = 0.35;
+    }
 
     // ---- intensity decay after a calm spell ----
     if (game.runTime - this.lastStressT > 3.2) {
@@ -242,10 +268,17 @@ export class Director {
 
   trySpawnBatch() {
     const game = this.game;
-    const cap = Math.min(TUNE.maxAlive, Math.round(9 + this.coeff * 7 * this.pacingMult()));
+    // Composition-first: the pressure model sets how much the floor may HOLD,
+    // the pacing multiplier still sets how fast it fills, TUNE.maxAlive is the
+    // hard ceiling.
+    const cap = Math.min(
+      TUNE.maxAlive,
+      Math.round(this.signals.spawnBudget * clamp(this.pacingMult(), 0.55, 1.75)),
+    );
     let spawned = 0;
+    const allowed = this.signals.allowedEnemies;
     const table = game.floorDef.table
-      .filter((t) => !t.minDiff || this.coeff >= t.minDiff)
+      .filter((t) => (allowed.length ? allowed.includes(t.key) : (!t.minDiff || this.coeff >= t.minDiff)))
       .map((t) => ({ ...t, cost: ENEMY_DEFS[t.key].credit }));
     if (!table.length) return;
     const cheapest = Math.min(...table.map((t) => t.cost));
@@ -271,6 +304,10 @@ export class Director {
       if (t < s.nextAt || this.coeff < s.minDiff) continue;
       if (this.aliveOf(key) >= s.cap) continue;
       if (this.pacing === 'RELAX' && !this.eventMode) continue;
+      // pressure model gets a veto: no piling a special onto someone already
+      // drowning, and no special at all during a forced relief valley
+      if (this.signals.specialChance <= 0.01) continue;
+      if (!this.eventMode && !chance(clamp(this.signals.specialChance * 4, 0.15, 1))) continue;
       s.nextAt = t + s.cd * rand(0.8, 1.25) * (this.eventMode ? 0.55 : 1);
       const pos = this.pickSpawnPos();
       if (!pos) continue;

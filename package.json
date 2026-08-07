@@ -21,10 +21,7 @@
     "format": "prettier --write \"src/**/*.{js,css}\" \"scripts/**/*.mjs\"",
     "format:check": "prettier --check \"src/**/*.{js,css}\" \"scripts/**/*.mjs\"",
     "check": "npm run lint && npm run test && npm run build",
-    "assets": "node scripts/meshy.mjs",
-    "assets:validate": "node scripts/meshy-validate.mjs",
-    "assets:check": "node scripts/meshy-optimize.mjs --check",
-    "assets:optimize": "node scripts/meshy-optimize.mjs",
+    "model:check": "node scripts/check-model.mjs",
     "assets:inspect": "gltf-transform inspect",
     "electron": "electron electron/main.cjs"
   },
@@ -32,13 +29,20 @@
     "@dimforge/rapier3d-compat": "^0.19.3",
     "@recast-navigation/three": "^0.43.1",
     "bitecs": "^0.4.0",
+    "comlink": "^4.4.2",
+    "detect-gpu": "^5.0.70",
     "howler": "^2.2.4",
+    "idb": "^8.0.3",
     "postprocessing": "^6.39.4",
     "recast-navigation": "^0.43.1",
+    "seedrandom": "^3.0.5",
     "three": "^0.180.0",
     "three-mesh-bvh": "^0.9.14",
+    "troika-three-text": "^0.52.5",
     "tweakpane": "^4.0.5",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "xstate": "^5.32.5",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

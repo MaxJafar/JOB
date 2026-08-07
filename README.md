@@ -22,8 +22,6 @@ Other commands:
 | `npm test` | engine test suite (physics, navmesh, BVH, timestep, audio, netcode) |
 | `npm run lint` | ESLint |
 | `npm run check` | lint + test + build — the gate CI runs |
-| `npm run assets:check` | report how much dead weight the shipped GLBs carry |
-| `npm run assets:optimize` | strip it (raws archived to `.meshy-cache/`) |
 | `npm run host` | co-op relay on `:7071` |
 
 Co-op (self-hosted, zero server costs):

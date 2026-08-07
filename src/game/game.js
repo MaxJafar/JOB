@@ -20,6 +20,12 @@ import { PostFX } from '../core/postfx.js';
 import { VoiceManager } from '../core/voices.js';
 import { MusicDirector } from '../core/music.js';
 import { FixedTimestep, FrameStats } from '../core/timestep.js';
+import { PoolManager } from '../core/pool.js';
+import { CombatQueries } from '../combat/queries.js';
+import { EnemyLOD } from '../ai/lod.js';
+import { PerformanceGovernor } from '../render/governor.js';
+import { InstancingManager } from '../render/instancing.js';
+import { DecalSystem } from '../render/decals.js';
 import { Telemetry } from '../core/telemetry.js';
 import { crashHandler } from '../core/errors.js';
 import { debugEnabled } from '../dev/enabled.js';
@@ -30,11 +36,13 @@ import { KpiTracker } from './kpis.js';
 import { THROWABLES, CONSUMABLES, rollWearable } from './gear.js';
 import { clamp, chance, rand, choose, dist2D } from '../core/utils.js';
 import { cyl, box } from './props.js';
-import { preloadAll, updateMixers, modelIndex, reapRigs, makeModelProp } from './models.js';
+import { preloadModels, updateMixers, reapRigs, loadedModels } from './models.js';
 import { makePerson } from './characters.js';
+import { CLASSES } from './classes.js';
 
 const _v1 = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
+const _up = new THREE.Vector3(0, 1, 0);
 
 export class Game {
   constructor(canvas) {
@@ -67,6 +75,12 @@ export class Game {
     this.bvh = new WorldBVH();             // three-mesh-bvh: hitscan & line of sight
     this.nav = new NavMesh();              // recast: enemy pathing
     this.postfx = new PostFX(this.renderer, this.scene, this.camera);
+    this.pools = new PoolManager();        // bullets, particles, gibs, decals
+    this.combat = new CombatQueries(this); // the ONE hit-detection API
+    this.enemyLOD = new EnemyLOD(this);    // 60/20/5/1 Hz AI tiers
+    this.instancing = new InstancingManager(this.scene);
+    this.decals = new DecalSystem(this.instancing);  // 150 blood splats = 1 draw call
+    this.perf = new PerformanceGovernor(this);
     this.timestep = new FixedTimestep({ hz: 60, maxSubSteps: 5 });
     this.frameStats = new FrameStats();
     this.telemetry = new Telemetry({ enabled: this.meta.settings.telemetry !== false });
@@ -164,11 +178,10 @@ export class Game {
       if (this.state === 'run' && !this.paused && !this.input.locked && !this.runOver) this.input.lock();
     });
 
-    // Meshy GLBs stream in behind the title screen; anything not ready yet just
-    // spawns as its procedural box version (see characters.js makePerson).
-    this.modelsReady = preloadAll()
-      .then(() => { this.hasModels = Object.keys(modelIndex()).length > 0; })
-      .catch((err) => console.warn('[models] preload failed — procedural only', err));
+    // Authored character GLBs stream in behind the title screen. Any class whose
+    // model hasn't been delivered yet just spawns as its procedural box version.
+    this.modelsReady = preloadModels(CLASSES.filter((c) => c.model).map((c) => ({ slug: c.model, height: c.height })))
+      .then(() => { this.loadedModels = loadedModels(); });
 
     this._last = performance.now();
     this.renderer.setAnimationLoop(() => this.frame());
@@ -193,6 +206,10 @@ export class Game {
       crashHandler.noteGpu(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
     } catch { /* extension blocked — not worth failing boot over */ }
 
+    // Classify the machine BEFORE the first floor, so a weak GPU never has to
+    // discover its limits by dropping frames for ten seconds first.
+    await this.perf.detect();
+
     const [physOk, navOk] = await Promise.all([loadPhysics(), loadNav()]);
     if (physOk) {
       this.physics.init();
@@ -204,7 +221,8 @@ export class Game {
 
     console.info(
       `[engine] physics=${physOk ? 'rapier' : 'legacy'} nav=${navOk ? 'recast' : 'direct-seek'} ` +
-      `bvh=three-mesh-bvh postfx=${this.postfx.quality} sim=${this.useFixedStep ? `${this.timestep.hz}Hz fixed` : 'variable'}`,
+      `bvh=three-mesh-bvh postfx=${this.postfx.quality} sim=${this.useFixedStep ? `${this.timestep.hz}Hz fixed` : 'variable'} ` +
+      `quality=${this.perf.tier} lod=on`,
     );
 
     if (debugEnabled()) {
@@ -362,12 +380,48 @@ export class Game {
     this.physics.clearLevel();
     this.bvh.dispose();
     this.nav.dispose();
+    this.decals.clear();
+    this.instancing.clear();
+    this.pools.releaseAll();   // hand objects back, keep the buffers
     this.timestep.reset();
     this.activeBoss = null;
     this.eventState = 'idle';
     reapRigs();   // drop AnimationMixers whose meshes just left the scene
     this.hud.reset();
     this.hud.hideBoss();
+  }
+
+  // ---- character art QA (docs/CHARACTER_ART_SPEC.md §8) ----
+  // Drop a delivered model in front of the camera and drive its clips:
+  //   game.previewCharacter('bruiser')          → spawn + list clips
+  //   game.previewCharacter('bruiser', 'run')   → play one clip
+  //   game.previewCharacter(null)               → clear
+  async previewCharacter(slug, clip = null, height = null) {
+    if (this._previewRig) {
+      this.scene.remove(this._previewRig.root);
+      this._previewRig.rig?.dispose();
+      this._previewRig = null;
+    }
+    if (!slug) return 'cleared';
+
+    // Load on demand so a freshly-exported GLB can be inspected without first
+    // wiring it into classes.js.
+    await preloadModels([{ slug, height }]);
+    const built = makePerson({ model: slug });
+    if (!built.rig) {
+      return `'${slug}' failed to load — expected public/models/characters/${slug}.glb `
+        + `(loaded: ${loadedModels().join(', ') || 'none'})`;
+    }
+    this._previewRig = built;
+    const root = built.root;
+    root.position.copy(this.camera.position).add(this.camera.getWorldDirection(_v1).multiplyScalar(4));
+    root.position.y = 0;
+    root.lookAt(this.camera.position.x, 0, this.camera.position.z);
+    this.scene.add(root);
+    if (clip && !built.rig.play(clip, 0.1, { restart: true })) {
+      return `no clip '${clip}' — has: ${[...built.rig.actions.keys()].join(', ')}`;
+    }
+    return `${slug} — clips: ${[...built.rig.actions.keys()].join(', ') || '(none)'}`;
   }
 
   buildFloor(idx, seed) {
@@ -417,9 +471,10 @@ export class Game {
     // spawn players at the arrival elevator
     const sp = this.level.playerSpawn;
     if (this.player) {
-      this.player.pos.copy(sp);
-      this.player.pos.x += rand(-1.5, 1.5);
-      this.player.vel.set(0, 0, 0);
+      // teleport (not a position write) so the motor's interpolation history
+      // resets too — otherwise the first frame on a new floor lerps across the
+      // whole building
+      this.player.motor.teleport(sp.x + rand(-1.5, 1.5), sp.y, sp.z);
       this.player.yaw = Math.PI;          // face into the room (toward -z)
       this.player.parachuteUsed = false;
       if (this.player.dead) { this.player.dead = false; this.player.hp = this.player.stats.maxHp * 0.5; this.player.mesh.visible = true; }
@@ -623,39 +678,10 @@ export class Game {
     this.postfx.update(dt, hpFrac);
     if (!this.postfx.render(dt)) this.renderer.render(this.scene, this.camera);
 
+    // Closed loop last: it reads this frame's cost and adjusts the next one.
+    this.perf.update(dt);
     this.debug?.update();
     this.input.endFrame();
-  }
-
-  // ---- asset QA: drop a generated model in front of the camera ----
-  // Console tool for validating Meshy output before it has a gameplay entity:
-  //   game.previewModel('securityguard')          → spawn + list its clips
-  //   game.previewModel('securityguard', 'charge') → play one clip on loop
-  //   game.previewModel(null)                      → clear
-  previewModel(slug, clip = null) {
-    if (this._previewRig) {
-      this.scene.remove(this._previewRig.root);
-      this._previewRig.rig?.dispose();
-      this._previewRig = null;
-    }
-    if (!slug) return 'cleared';
-    const built = makePerson({ model: slug });
-    if (!built?.rig) {
-      const prop = makeModelProp(slug);
-      if (!prop) return `no model '${slug}' — loaded: ${Object.keys(modelIndex()).join(', ') || '(none)'}`;
-      this._previewRig = { root: prop, rig: null };
-    } else {
-      this._previewRig = built;
-    }
-    const root = this._previewRig.root;
-    const cam = this.camera;
-    root.position.copy(cam.position).add(cam.getWorldDirection(_v1).multiplyScalar(4));
-    root.position.y = 0;
-    root.lookAt(cam.position.x, 0, cam.position.z);
-    this.scene.add(root);
-    const rig = this._previewRig.rig;
-    if (rig && clip) rig.play(clip, 0.1, { restart: true });
-    return rig ? `spawned ${slug} — clips: ${[...rig.actions.keys()].join(', ')}` : `spawned prop ${slug}`;
   }
 
   handleDraftKeys() {
@@ -722,20 +748,17 @@ export class Game {
       }
     }
 
-    // enemies
-    for (let i = this.enemies.length - 1; i >= 0; i--) {
-      const e = this.enemies[i];
-      let keep;
-      if (e.netPuppet) {
-        keep = this.updatePuppet(e, dt);
-      } else {
-        keep = e.update(dt);
-      }
-      if (!keep) {
-        e.disposeMesh();
-        this.enemies.splice(i, 1);
-        this.enemyById.delete(e.id);
-      }
+    // Enemies, through the LOD scheduler. Distant mobs think at 5 Hz or 1 Hz
+    // with the accumulated dt, so they cover the same ground for a fraction of
+    // the cost — this is what makes 100+ enemies affordable.
+    const reaped = this.enemyLOD.update(dt, (e, edt) => (
+      e.netPuppet ? this.updatePuppet(e, edt) : e.update(edt)
+    ));
+    for (const e of reaped) {
+      const i = this.enemies.indexOf(e);
+      if (i >= 0) this.enemies.splice(i, 1);
+      e.disposeMesh();
+      this.enemyById.delete(e.id);
     }
 
     // projectiles & hazards
@@ -1029,6 +1052,10 @@ export class Game {
     const isHost = !this.net.connected || this.net.isHost;
     this.telemetry.kill(this.runTime, e.key, !!e.elite);
     this.director.onKillNear(e.pos);
+    // a floor that has been fought over should look like it
+    this.decals.spawn('blood', _v1.set(e.pos.x, 0.01, e.pos.z), _up, {
+      size: e.def.big ? 1.4 : null,
+    });
     this.effects.burst(e.center.clone(), { color: e.elite ? 0xffb36b : 0xd8dde6, n: e.def.big ? 26 : 12, speed: e.def.big ? 8 : 5, ttl: 0.7 });
     if (this.floorDef.key === 'marketing') this.effects.confetti(e.center.clone(), 8);
 
@@ -1358,6 +1385,7 @@ export class Game {
     const e = isBoss ? new Boss(this, key, pos, opts) : new Enemy(this, key, pos, opts);
     this.enemies.push(e);
     this.enemyById.set(e.id, e);
+    this.enemyLOD.register(e);   // starts hot, then settles into its tier
     if (!isBoss) {
       this.effects.ring(pos, { color: 0xffffff, r0: 0.2, r1: 1.4, dur: 0.35, opacity: 0.4 });
     }
@@ -1995,6 +2023,7 @@ export class Game {
         e.netPuppet = true;
         this.enemies.push(e);
         this.enemyById.set(id, e);
+        this.enemyLOD.register(e);
       }
       e.netTarget = e.netTarget ?? new THREE.Vector3();
       e.netTarget.set(x, y, z);

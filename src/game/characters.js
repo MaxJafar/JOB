@@ -7,9 +7,9 @@ import { makeModelPerson } from './models.js';
 export const SKINS = [0xE8B89B, 0xC68863, 0x8A5A3B, 0xF2CBA8, 0x6E4428];
 
 // opts: {model, skin, shirt, pants, tie, hair, scale, zombie, accessories: ['glasses','headset','cap','bun','crown','sunglasses','hardhat','visor']}
-// `model` names a Meshy slug from public/models/models.json. If that model is
-// loaded we return the skinned rig; otherwise we build the procedural boxes, so
-// a missing or failed asset degrades instead of crashing.
+// `model` names an authored GLB under public/models/characters (see
+// docs/CHARACTER_ART_SPEC.md). Until that file exists we build the procedural
+// boxes below, so every call site works whether or not the art has landed.
 export function makePerson(opts = {}) {
   if (opts.model) {
     const rigged = makeModelPerson(opts.model, opts);
