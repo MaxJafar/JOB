@@ -184,7 +184,12 @@ body { font-family: var(--font); color: var(--ink); user-select: none; -webkit-u
 .inv-slot .is-name { font-size: 13px; font-weight: 800; }
 .inv-slot .is-stats { font-size: 11px; color: var(--ink-dim); }
 .inv-slot.empty .is-name { color: var(--ink-dim); font-weight: 400; font-style: italic; }
-#inv-bag-label { font-size: 10px; letter-spacing: 2px; color: var(--ink-dim); margin-bottom: 6px; }
+#inv-modules-label, #inv-bag-label { font-size: 10px; letter-spacing: 2px; color: var(--ink-dim); margin-bottom: 6px; }
+#inv-modules-label { color: var(--accent); margin-top: 14px; }
+#inv-modules { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+#inv-modules .inv-slot .is-type { width: 78px; }
+#inv-modules .is-type small { color: var(--accent); letter-spacing: 1px; }
+#inv-modules .is-stats em { color: var(--ink-dim); opacity: .7; font-style: normal; }
 #inv-bag { display: flex; flex-direction: column; gap: 6px; min-height: 30px; }
 .inv-bag-row { display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,.22); border: 1px solid var(--panel-line);
   border-radius: 8px; padding: 6px 10px; }

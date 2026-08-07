@@ -99,7 +99,7 @@ export const CLASSES = [
         let n = 0;
         for (const e of game.enemies) {
           if (e.dead) continue;
-          if (e.pos.distanceTo(player.pos) < 14) { e.auditT = 6; n++; }
+          if (e.pos.distanceTo(player.pos) < 14) { e.auditT = 6; e.auditPower = 0.3; n++; }
         }
         game.effects.ring(player.pos, { color: 0xffd23f, r1: 14, dur: 0.5 });
         game.audio.sfx('buy');
@@ -385,6 +385,134 @@ export const CLASSES = [
           }
           return true;
         } });
+        return true;
+      },
+    },
+  },
+  // ---- the two hires that complete the range grid: 2 melee / 2 short / 2 long ----
+  {
+    key: 'barista', icon: '☕', name: 'THE BARISTA', title: 'Third Wave, Second Shift',
+    desc: 'Unbolted the steam arm off the machine and brought it to the floor. Everything within arm\'s reach cooks; nothing past 8 metres notices.',
+    hp: 118, speed: 7.3, damage: 9,
+    weapon: 'steamwand',
+    passive: 'Third-Wave Discipline — heat is not a penalty, it is ammunition: STEAM BURST hits for whatever the gauge has built. Vent before it locks.',
+    look: {
+      shirt: 0x4a5f52, pants: 0x2b3038, tie: null,
+      accessories: ['apron', 'cap'], hair: 0x2a1c12,
+    },
+    primary: {
+      name: 'Steam Wand', icon: '♨️', desc: 'HOLD: a scalding cone. Brutal inside 8m, useless past it. Builds heat.', cd: 0.06, heat: true,
+      overheatMsg: '♨️ WAND SCALDED — LET IT COOL',
+      heatNote: 'COOLING…',
+      fire(game, player) {
+        const crit = rollCrit(player);
+        const fwd = _v.set(Math.sin(player.yaw), 0, Math.cos(player.yaw));
+        // 8m is the designed cliff — this is a short-range chassis and the
+        // falloff is the weakness the whole kit is balanced around
+        const hits = game.combat.meleeArc({
+          origin: player.pos, direction: fwd, radius: 8, angle: 34, maxTargets: 8,
+        });
+        for (const e of hits) {
+          const d = e.pos.distanceTo(player.pos);
+          const falloff = d < 4 ? 1 : Math.max(0.25, 1 - (d - 4) / 4);
+          game.damageEnemy(e, dmgOf(player, falloff, crit), { crit, owner: player });
+          // scalding leaves a mark: a short burn that stacks with the cone
+          e.bleeds?.push({ t: 2, dps: player.stats.damage * 0.5, owner: player });
+        }
+        const muzzle = player.muzzleWorldFx();
+        game.effects.burst(muzzle.clone().addScaledVector(fwd, 0.7), {
+          color: 0xf2f6ff, n: 3, speed: 8, size: 0.14, ttl: 0.3, gravity: 1.6, up: 0.8,
+        });
+        game.audio.sfx('spit', { vol: 0.22 });
+        return true;
+      },
+    },
+    secondary: {
+      name: 'Steam Burst', icon: '💥', desc: 'Dump the whole gauge at once: a shockwave that scales with how hot you let it run, and vents you back to zero.', cd: 6,
+      use(game, player) {
+        // The signature IS the risk-management loop: the burst is worth what
+        // the gauge holds, and the gauge is what locks you out if it fills.
+        const heat = player.heatGauge;
+        const scale = 0.6 + heat * 2.6;
+        const radius = 4 + heat * 3.5;
+        player.heatGauge = 0;
+        player.overheatLock = 0;
+        game.effects.ring(player.pos, { color: 0xf2f6ff, r1: radius, dur: 0.4 });
+        game.effects.burst(player.pos.clone().setY(1), {
+          color: 0xf2f6ff, n: Math.round(10 + heat * 24), speed: 9, ttl: 0.55, gravity: 1.2,
+        });
+        game.audio.sfx('explosion', { vol: 0.4 + heat * 0.5 });
+        game.shake(0.2 + heat * 0.4);
+        for (const e of game.enemies) {
+          if (e.dead || dist(e.pos, player.pos) > radius) continue;
+          const crit = rollCrit(player);
+          game.damageEnemy(e, dmgOf(player, scale, crit), { crit, owner: player });
+          e.applyKnockback(player.pos, 8 + heat * 12);
+          e.chillT = 0;
+          e.bleeds?.push({ t: 3, dps: player.stats.damage * heat, owner: player });
+        }
+        if (heat > 0.7) game.hud.toast('♨️ FULL PRESSURE', 'item');
+        return true;
+      },
+    },
+  },
+  {
+    key: 'analyst', icon: '📐', name: 'THE ANALYST', title: 'Cold, Patient, Surgical',
+    desc: 'Reads the room as a spreadsheet and the room as a firing line. Charged shots that go through a whole column of coworkers — provided nothing is close enough to touch her.',
+    hp: 92, speed: 7.0, damage: 22,
+    weapon: 'ledgerrifle',
+    passive: 'Due Diligence — your crits pay ×3 instead of ×2, and a fully charged shot pierces everything in the line.',
+    critDamageBonus: 1,
+    look: {
+      shirt: 0x2f3a4a, pants: 0x232a35, tie: 0x7fe7ff,
+      accessories: ['glasses', 'bun'], hair: 0x4a3524, build: 'petite',
+    },
+    primary: {
+      name: 'Ledger Rifle', icon: '📐', desc: 'HOLD to charge, release to fire. A full charge pierces the whole line; a panic shot barely dents.', cd: 0.18, mag: 6, reload: 1.6,
+      charge: 0.75,
+      fire(game, player, aim, charge = 1) {
+        const crit = rollCrit(player);
+        const full = charge > 0.97;
+        // 0.55× on a flinch shot up to 3.2× on a held one: the charge bar IS
+        // the skill check, and standing still to fill it is the cost
+        const mult = 0.55 + charge * 2.65;
+        game.projectiles.spawn({
+          pos: aim.origin, vel: _v.copy(aim.dir).multiplyScalar(72 + charge * 40), kind: 'card',
+          damage: dmgOf(player, mult, crit), crit, friendly: true, ttl: 2.6, owner: player,
+          pierce: full ? 99 : Math.floor(charge * 3), knockback: 2 + charge * 6, spin: 4,
+        });
+        game.audio.sfx(full ? 'crit' : 'card', { vol: 0.6 + charge * 0.5 });
+        if (full) {
+          game.shake(0.18);
+          game.effects.burst(player.muzzleWorldFx(), { color: 0xffd23f, n: 8, speed: 5, size: 0.08, ttl: 0.3 });
+        }
+        return true;
+      },
+    },
+    secondary: {
+      name: 'Risk Assessment', icon: '🎯', desc: 'Flag what you are aiming at. The flagged target takes +45% damage from you and stays lit through a crowd.', cd: 9,
+      use(game, player, aim) {
+        // Deliberately single-target: the swarm weakness is the design, and
+        // patching it is what the SPECIAL module slot is for.
+        let best = null, bestD = Infinity;
+        const fwd = _v.copy(aim.dir);
+        for (const e of game.enemies) {
+          if (e.dead) continue;
+          const to = e.pos.clone().sub(player.pos);
+          const d = to.length();
+          if (d > 40) continue;
+          if (to.normalize().dot(fwd) < 0.9) continue;
+          if (d < bestD) { bestD = d; best = e; }
+        }
+        if (!best) {
+          game.hud.toast('🎯 nothing in the sights', '');
+          return false;
+        }
+        best.auditT = 9;
+        best.auditPower = 0.45;
+        game.effects.ring(best.pos, { color: 0xffd23f, r1: 1.8, dur: 0.6 });
+        game.audio.sfx('ui2');
+        game.hud.toast(`🎯 FLAGGED: ${best.def.name ?? 'TARGET'}`, 'item');
         return true;
       },
     },

@@ -846,6 +846,22 @@ export class BotBrain {
         else if (cluster >= 3 && c.nearDist < 14) { out.score = 0.62; out.reason = 'bodycheck-pack'; out.aim = 'forward'; }
         break;
 
+      case 'barista':
+        // Steam Burst is worth exactly what the gauge holds — 0.6x cold, 3.2x
+        // full — so the decision is never "is there a target", it is "is the
+        // gauge worth spending". The one exception is escaping.
+        if (c.hpFrac < 0.35 && c.count6 >= 2) { out.score = 0.92; out.reason = 'burst-escape'; out.urgent = true; out.aim = 'self'; }
+        else if ((self.heat ?? 0) > 0.85) { out.score = 0.8; out.reason = 'burst-nearlock'; out.aim = 'self'; }
+        else if ((self.heat ?? 0) > 0.55 && cluster >= 2) { out.score = 0.7; out.reason = 'burst-hot'; out.aim = 'self'; }
+        break;
+
+      case 'analyst':
+        // Risk Assessment is a 9s single-target +45%. It is worth a cooldown
+        // only on something that will still be alive to receive it.
+        if (t && (t.boss || t.rare)) { out.score = 0.85; out.reason = 'flag-boss'; }
+        else if (t && (t.big || t.special) && t.dist < 30) { out.score = 0.7; out.reason = 'flag-priority'; }
+        break;
+
       default:
         break;
     }

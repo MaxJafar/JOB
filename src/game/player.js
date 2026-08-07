@@ -7,6 +7,7 @@ import { makePerson, makeHeldItem, makeChairMount, animateWalk, poseIdle } from 
 import { box, cyl } from './props.js';
 import { computeItemMods } from './items.js';
 import { upgradeMods } from './upgrades.js';
+import { MODULE_BY_ID } from './modules.js';
 import { clamp, lerp, damp, chance, dist2D } from '../core/utils.js';
 import { PlayerMotor } from '../player/motor.js';
 
@@ -257,13 +258,24 @@ export class Player {
     // pockets & wardrobe
     this.ammo = CLASS_BY_KEY[classKey].primary.mag ?? Infinity;
     this.reloadT = 0;
-    this.heatGauge = 0;        // IT overheat 0..1
+    this.heatGauge = 0;        // IT / Barista overheat 0..1
     this.overheatLock = 0;
+    this.chargeAmt = 0;        // Analyst: charged-shot wind-up 0..1
     this.throwable = null;     // {id, count}
     this.consumables = [];     // [{id}] max 2
     this.gearSlots = { head: null, body: null, legs: null, trinket: null };
     this.gearBag = [];         // unequipped wearables, max 6
     this.gearMeshes = [];      // attached visual meshes
+    // ---- punch-card modules: the two slots loot fills (v0.4) ----
+    // The chassis (primary + RMB signature) is fixed forever; THESE are the run.
+    this.modules = { passive: null, special: null };
+    this.moduleBag = [];       // unequipped cards, max 4
+    this.specialCd = 0;        // X — the SPECIAL module's cooldown
+    this.crowdNear = 0;        // enemies within 9m, resampled at 5 Hz (OPEN FLOOR PLAN)
+    this._crowdT = 0;
+    this.eliteBuffT = 0;       // EMPLOYEE OF THE MONTH window
+    this.backupUsed = false;   // BACKUP SERVER — once per floor
+    this.killsSinceSnack = 0;  // PAPER TRAIL counter
     this.hotT = 0;             // sandwich heal-over-time
     this.hotRate = 0;
     this.primaryCd = 0;
@@ -402,6 +414,14 @@ export class Player {
       this.detachLatch(true);   // dashing shakes off the micromanager
       this.breakTether();       // …and cuts the Mediator's leash
       this.stunT = 0;           // and is the only thing that ends a stun early
+      // CAFFEINE DRIP: the dash stops being purely defensive
+      const burn = this.passive('dashBurn');
+      if (burn > 0) {
+        g.addSlowZone({
+          pos: this.pos.clone().setY(0), radius: 2.6, ttl: 2.4, factor: 0.7,
+          dps: this.stats.damage * burn, owner: this, color: 0xffb36b, quiet: true,
+        });
+      }
     };
     this.motor.onLand = (fallSpeed) => {
       if (fallSpeed < 6) return;
@@ -412,6 +432,13 @@ export class Player {
     };
     this.motor.onStepUp = () => g.audio.sfx('ui', { vol: 0.12 });
   }
+
+  /**
+   * Read one tuned number off the equipped PASSIVE module, or 0 if the card
+   * that owns it isn't equipped. Every passive hook site is this one lookup, so
+   * adding a card never means touching the site that reads it.
+   */
+  passive(key) { return this.modules.passive?.v?.[key] ?? 0; }
 
   recomputeStats() {
     const c = this.classDef;
@@ -432,21 +459,29 @@ export class Player {
       for (const [k, v] of Object.entries(g.stats)) gear[k] = (gear[k] ?? 0) + v;
       if (g.gooResist) this.gooResist = true;
     }
+    // ---- PASSIVE module contributions ----
+    // OPEN FLOOR PLAN caps at 6 bodies: past that it stops being "you waded in"
+    // and starts being "the director spawned a wave", which is not skill.
+    const crowd = 1 + this.passive('crowdDamage') * Math.min(6, this.crowdNear ?? 0);
+    const atFullHp = this.hp === undefined || this.hp >= (this._lastMaxHp ?? 0) - 0.5;
+    const deskMove = 1 + (atFullHp ? this.passive('fullHpMove') : 0);
+    const eotm = 1 + (this.eliteBuffT > 0 ? this.passive('eliteBuff') : 0);
     this.stats = {
       maxHp: (c.hp * lvlHp * meta.hpMult + mods.maxHpBonus + ups.maxHpBonus + gear.maxHpBonus) * mods.hpMult,
-      damage: c.damage * lvlDmg * mods.damageMult * ups.damageMult * (1 + gear.damageMult) * meta.dmgMult,
+      damage: c.damage * lvlDmg * mods.damageMult * ups.damageMult * (1 + gear.damageMult) * meta.dmgMult
+        * crowd * eotm,
       flatDamage: mods.flatDamage,
       atkCdMult: 1 / (mods.atkSpeedMult * ups.atkSpeedMult * hasteStacks),
       moveSpeed: c.speed * mods.moveMult * ups.moveMult * (1 + gear.moveMult) * meta.speedMult
         * (this.espresso.stacks > 0 ? 1 + 0.08 * this.espresso.stacks : 1)
-        * (this.coffeeBuffT > 0 ? 1.12 : 1) * (1 + comboBonus * 0.6),
+        * (this.coffeeBuffT > 0 ? 1.12 : 1) * (1 + comboBonus * 0.6) * deskMove,
       sprintMult: TUNE.sprintMult * (c.sprintBonus ?? 1),
       critChance: TUNE.baseCrit + mods.critChance + ups.critChance + gear.critChance,
-      critDamageBonus: ups.critDamageBonus ?? 0,
+      critDamageBonus: (ups.critDamageBonus ?? 0) + (c.critDamageBonus ?? 0),
       regen: mods.regen + ups.regen + gear.regen + (c.regenBonus ?? 0) + meta.regen,
       moneyMult: mods.moneyMult * (c.moneyBonus ?? 1) * (1 + gear.moneyMult) * meta.moneyMult,
       xpMult: mods.xpMult * ups.xpMult * (1 + gear.xpMult) * (c.xpBonus ?? 1),
-      dashCd: TUNE.dashCd * mods.dashCdMult * ups.dashCdMult,
+      dashCd: TUNE.dashCd * mods.dashCdMult * ups.dashCdMult * (1 - this.passive('dashCdMult')),
       // 0..0.9 — read by PlayerMotor.applyKnockback. Heavy archetypes and
       // body gear should be able to stand their ground against a Charger.
       knockbackResist: Math.min(0.9, (c.knockbackResist ?? 0) + (gear.knockbackResist ?? 0)),
@@ -458,6 +493,10 @@ export class Player {
       espresso: mods.espresso,
       cryptoPortfolio: mods.cryptoPortfolio,
     };
+    // STANDING DESK reads "am I at full HP", which needs maxHp — which is what
+    // this function computes. Cache last frame's ceiling for the next call
+    // rather than reading a value that does not exist yet.
+    this._lastMaxHp = this.stats.maxHp;
     if (this.hp !== undefined) this.hp = Math.min(this.hp, this.stats.maxHp);
   }
 
@@ -465,7 +504,7 @@ export class Player {
     this.upgrades.set(up.id, (this.upgrades.get(up.id) || 0) + 1);
     if (up.id === 'insurance') this.heal(this.stats.maxHp * 0.5);
     this.recomputeStats();
-    this.game.hud.renderItems(this.items, this.upgrades);
+    this.game.hud.renderItems(this.items, this.upgrades, this.modules);
     this.game.audio.sfx(up.kind === 'evolution' ? 'item-rare' : 'item');
     this.game.hud.toast(`${up.icon} ${up.name}`, 'item');
   }
@@ -492,7 +531,7 @@ export class Player {
   addItem(item) {
     this.items.set(item.id, (this.items.get(item.id) || 0) + 1);
     this.recomputeStats();
-    this.game.hud.renderItems(this.items, this.upgrades);
+    this.game.hud.renderItems(this.items, this.upgrades, this.modules);
     this.game.hud.toast(`${item.icon} ${item.name}`, 'item');
     this.game.audio.sfx(item.rarity === 'rare' ? 'item-rare' : 'item');
   }
@@ -555,6 +594,17 @@ export class Player {
         this.game.audio.sfx('parachute');
         this.game.hud.toast('🪂 GOLDEN PARACHUTE DEPLOYED', 'item');
         this.game.effects.ring(this.pos, { color: 0xffd23f, r1: 6, dur: 0.8 });
+        return;
+      }
+      // BACKUP SERVER — once per floor, and it hands back i-frames rather than
+      // health, so the save is a chance to escape, not a second health bar
+      if (this.passive('restoreIframes') > 0 && !this.backupUsed) {
+        this.backupUsed = true;
+        this.hp = 1;
+        this.iframes = this.passive('restoreIframes');
+        this.game.audio.sfx('item-rare');
+        this.game.hud.announce('💾 BACKUP SERVER — RESTORED FROM SNAPSHOT', 2.4, true);
+        this.game.effects.ring(this.pos, { color: 0x7fe7ff, r1: 6, dur: 0.8 });
         return;
       }
       this.hp = 0;
@@ -755,6 +805,89 @@ export class Player {
     this.game.hud.toast(`${gear.icon} equipped: ${gear.name}`, 'item');
   }
 
+  // ---------- punch-card modules ----------
+  /**
+   * A card goes straight into its slot if the slot is empty — a first module
+   * should never need a menu trip. After that it lands in the bag and the
+   * player chooses, because swapping a working build is a real decision.
+   */
+  pickupModule(mod) {
+    const slot = mod.kind;
+    if (!this.modules[slot]) {
+      this.equipModule(mod);
+    } else if (this.moduleBag.length < 4) {
+      this.moduleBag.push(mod);
+      this.game.hud.toast(`🗃️ ${mod.icon} ${mod.name} → bag (Tab)`, 'item');
+      this.game.audio.sfx(mod.tier >= 2 ? 'item-rare' : 'item');
+    } else {
+      this.addMoney(45);
+      this.game.hud.toast(`🗃️ card file full — ${mod.name} filed for $45`, 'warn');
+      return;
+    }
+    // a power spike you never got to taste is not a power spike (D 1.2)
+    this.game.director?.grantSpikeGrace();
+    this.game.telemetry?.modulePicked?.(mod.id, mod.rarity, this.game.runTime);
+  }
+
+  equipModule(mod) {
+    const slot = mod.kind;
+    const old = this.modules[slot];
+    this.modules[slot] = mod;
+    const bagIdx = this.moduleBag.indexOf(mod);
+    if (bagIdx >= 0) this.moduleBag.splice(bagIdx, 1);
+    if (old && this.moduleBag.length < 4) this.moduleBag.push(old);
+    // a fresh card is ready immediately; swapping one mid-fight is not free
+    if (slot === 'special') this.specialCd = old ? Math.min(this.specialCd, mod.cd) : 0;
+    this.recomputeStats();
+    this.game.hud.setModules?.(this);
+    this.game.hud.toast(`${mod.icon} installed: ${mod.name}`, 'item');
+    this.game.audio.sfx(mod.tier >= 2 ? 'item-rare' : 'item');
+  }
+
+  /** Effective cooldown after ERGONOMIC CHAIR. */
+  specialCooldown() {
+    const base = this.modules.special?.cd ?? 0;
+    return base * (1 - this.passive('specialCdMult'));
+  }
+
+  /**
+   * Passive-module bookkeeping.
+   *
+   * The two state-dependent passives (OPEN FLOOR PLAN's crowd count, STANDING
+   * DESK's at-full-HP check) both feed `stats.damage`/`stats.moveSpeed`, which
+   * means they need a `recomputeStats()`. Doing that every frame for every
+   * player is exactly the kind of cost that hides in a frame graph, so both are
+   * EDGE-TRIGGERED: the crowd is bucketed and resampled at 5 Hz, and a recompute
+   * only fires when the bucket or the full-HP flag actually changes.
+   */
+  updateModules(dt) {
+    let dirty = false;
+    if (this.eliteBuffT > 0) {
+      this.eliteBuffT -= dt;
+      if (this.eliteBuffT <= 0) { this.eliteBuffT = 0; dirty = true; }
+    }
+    if (this.passive('crowdDamage') > 0) {
+      this._crowdT -= dt;
+      if (this._crowdT <= 0) {
+        this._crowdT = 0.2;
+        let n = 0;
+        for (const e of this.game.enemies) {
+          if (!e.dead && dist2D(e.pos, this.pos) < 9) n++;
+          if (n >= 6) break;   // the bonus caps at 6 — counting past it is waste
+        }
+        if (n !== this.crowdNear) { this.crowdNear = n; dirty = true; }
+      }
+    } else if (this.crowdNear !== 0) {
+      this.crowdNear = 0;
+      dirty = true;
+    }
+    if (this.passive('fullHpMove') > 0) {
+      const full = this.hp >= this.stats.maxHp - 0.5;
+      if (full !== this._wasFullHp) { this._wasFullHp = full; dirty = true; }
+    }
+    if (dirty) this.recomputeStats();
+  }
+
   /**
    * Rebuild every equipped piece onto the rig. Sized from `parts.build` so a
    * hard hat that fits the Intern also fits the Facilities Guy's head and the
@@ -855,6 +988,7 @@ export class Player {
     // timers
     this.primaryCd = Math.max(0, this.primaryCd - dt);
     this.secondaryCd = Math.max(0, this.secondaryCd - dt);
+    this.specialCd = Math.max(0, this.specialCd - dt);
     this.iframes = Math.max(0, this.iframes - dt);
     this.attackAnimT = Math.max(0, this.attackAnimT - dt);
     // (dash cooldown is ticked inside the motor)
@@ -879,6 +1013,7 @@ export class Player {
       if (dist2D(e.pos, this.pos) < e.radius + 2.1) crowd += e.def.crowd;
     }
     this.crowdDrag = Math.min(0.6, crowd);
+    this.updateModules(dt);
     if (!input.mouse(0)) this.beamHeat = Math.max(0, this.beamHeat - dt * 1.6);
     if (this.espresso.t > 0) {
       this.espresso.t -= dt;
@@ -973,9 +1108,30 @@ export class Player {
       && (!cls.primary.mag || this.ammo > 0)
       && (!cls.primary.heat || this.overheatLock <= 0);
 
-    if (input.mouse(0) && this.primaryCd <= 0 && !this.blocking && input.locked && canFire) {
+    // ---- charged primaries (THE ANALYST) ----
+    // Hold to wind up, release to fire. The wind-up is the aim time and the
+    // whole skill demand: you may walk while charging, but you have to commit
+    // to a firing line long enough to fill the bar. Letting go early still
+    // fires — a panic shot that does almost nothing is a better teacher than
+    // an input that silently does nothing at all.
+    let firedCharge = null;
+    if (cls.primary.charge) {
+      const holding = input.mouse(0) && !this.blocking && input.locked && canFire;
+      if (holding) {
+        this.chargeAmt = Math.min(1, this.chargeAmt + dt / cls.primary.charge);
+      } else if (this.chargeAmt > 0) {
+        firedCharge = this.chargeAmt;
+        this.chargeAmt = 0;
+      }
+      // an interrupt (stun, reload, empty mag) drops the shot rather than
+      // banking it — otherwise a stun would hand you a free full charge
+      if (!canFire || stunned) { this.chargeAmt = 0; firedCharge = null; }
+    }
+
+    const wantsPrimary = cls.primary.charge ? firedCharge !== null : input.mouse(0);
+    if (wantsPrimary && this.primaryCd <= 0 && !this.blocking && input.locked && canFire) {
       const aim = this.aimData();
-      if (cls.primary.fire(game, this, aim)) {
+      if (cls.primary.fire(game, this, aim, firedCharge ?? 1)) {
         this.primaryCd = cls.primary.cd * this.stats.atkCdMult;
         this.attackAnimT = Math.max(this.attackAnimT, 0.16);
         this.recoilT = 1;
@@ -990,7 +1146,7 @@ export class Player {
             this.overheatLock = 1.8;
             game.audio.sfx('spit', { vol: 0.8 });
             game.effects.burst(this.muzzleWorldFx(), { color: 0xff7b2d, n: 10, speed: 3, ttl: 0.5 });
-            game.hud.toast('🔥 ROUTER OVERHEATED — REBOOTING', 'warn');
+            game.hud.toast(cls.primary.overheatMsg ?? '🔥 ROUTER OVERHEATED — REBOOTING', 'warn');
           }
         }
         if (!cls.primary.beam) game.effects.burst(this.muzzleWorldFx(), { color: 0xfff2b0, n: 2, speed: 1.2, size: 0.05, ttl: 0.12, gravity: 0 });
@@ -1021,6 +1177,21 @@ export class Player {
         if (cls.secondary.use(game, this, aim)) {
           this.secondaryCd = cls.secondary.cd;
           this.attackAnimT = Math.max(this.attackAnimT, 0.25);
+        }
+      }
+    }
+
+    // SPECIAL module (X) — the loot-filled slot, same offline rules as the rest
+    if (input.pressed('KeyX') && this.modules.special && this.specialCd <= 0 && input.locked) {
+      if (!abilitiesOnline) {
+        this.systemsOfflineFeedback();
+      } else {
+        const mod = this.modules.special;
+        const def = MODULE_BY_ID[mod.id];
+        if (def?.use(game, this, this.aimData(), mod)) {
+          this.specialCd = this.specialCooldown();
+          this.attackAnimT = Math.max(this.attackAnimT, 0.25);
+          game.telemetry?.moduleUsed?.(mod.id, game.runTime);
         }
       }
     }

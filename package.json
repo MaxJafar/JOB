@@ -1,7 +1,7 @@
 {
   "name": "job-roguelite",
   "private": true,
-  "version": "0.3.5",
+  "version": "0.4.0",
   "description": "J.O.B — a low-poly office roguelite battle arena (Risk of Rain x Left 4 Dead)",
   "license": "UNLICENSED",
   "author": "pumba",

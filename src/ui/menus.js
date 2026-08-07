@@ -31,7 +31,7 @@ export class Menus {
         <button class="mbtn" data-a="howto">📋 EMPLOYEE HANDBOOK</button>
         <button class="mbtn" data-a="settings">⚙ SETTINGS</button>
       </div>
-      <div class="menu-note">runs: ${meta.data.stats.runs} · wins: ${meta.data.stats.wins} · best floor: ${meta.data.stats.bestFloor} · v0.1 prototype</div>`;
+      <div class="menu-note">runs: ${meta.data.stats.runs} · wins: ${meta.data.stats.wins} · best floor: ${meta.data.stats.bestFloor} · v${__APP_VERSION__}</div>`;
     root().appendChild(s);
     s.addEventListener('click', (e) => {
       const a = e.target?.dataset?.a;

@@ -36,6 +36,7 @@ import { rollItem, ITEM_BY_ID, ITEMS } from './items.js';
 import { rollDraft } from './upgrades.js';
 import { KpiTracker } from './kpis.js';
 import { THROWABLES, CONSUMABLES, rollWearable } from './gear.js';
+import { rollModule, ModuleLuck, BOSS_MODULES } from './modules.js';
 import { clamp, chance, rand, choose, dist2D } from '../core/utils.js';
 import { cyl, box } from './props.js';
 import { preloadModels, updateMixers, reapRigs, loadedModels } from './models.js';
@@ -147,7 +148,8 @@ export class Game {
     this.draftPicks = null;
     this.inventoryOpen = false;
     this.floorEvent = null;   // {kind, t}
-    this.gearDrops = [];      // world pickups: briefcases with wearables/throwables/consumables
+    this.gearDrops = [];      // world pickups: briefcases with wearables/throwables/consumables/modules
+    this.moduleLuck = new ModuleLuck();   // pity timer on punch-card rarity
     this.budget = 0;          // DEPARTMENT BUDGET — shared team currency for doors & floor systems
     this.floorBuff = null;    // active floor-breaker effect
     this.lockdown = null;     // core-holdout wave state {wave, waves, t}
@@ -303,6 +305,7 @@ export class Game {
     this.draftOpen = false;
     this.draftQueue = 0;
     this.combo = { count: 0, t: 0, best: 0, lastBonus: 0 };
+    this.moduleLuck.reset();
     this.hud.hideDraft();
     this.runTime = 0;
     this.loopCount = loop;
@@ -470,7 +473,10 @@ export class Game {
     this.miniBoss = null;
     this.miniBossDone = false;
     this.currentRoom = null;
-    if (this.player) this.player.hydratedThisFloor = false;
+    if (this.player) {
+      this.player.hydratedThisFloor = false;
+      this.player.backupUsed = false;   // BACKUP SERVER restores once per floor
+    }
     this.level = new Level(this, this.floorDef, seed);
     this.scene.add(this.level.group);
     this.scene.fog = new THREE.Fog(this.floorDef.palette.fog, 30, 95);
@@ -1031,7 +1037,8 @@ export class Game {
       }
       return;
     }
-    if (e.auditT > 0) amount *= 1.3;
+    // a PATENTED Tax Audit card marks harder than the Accountant's signature
+    if (e.auditT > 0) amount *= 1 + (e.auditPower ?? 0.3);
     if (e.chillVuln > 0) amount *= 1.2;   // DEEP FREEZE: frozen staff bruise easier
     // COMPOUND INTEREST: accountant ramps damage on a focused target
     if (owner === this.player && owner.upgrades?.get('compound') && !opts.dot) {
@@ -1143,6 +1150,8 @@ export class Game {
     if (e.auditT > 0 && killer === this.player && killer.upgrades?.get('writeoff')) money *= 1.6;
     // COMMISSION: sales get paid per combo
     if (killer === this.player && killer.upgrades?.get('commission')) money += this.combo.count;
+    // OVERTIME PAY: the combo you were already building now pays rent
+    if (killer === this.player && this.combo.count >= 10) money *= 1 + killer.passive('comboMoney');
     // CC: EVERYONE — kills with slips release more slips
     if (killer === this.player && killer.upgrades?.get('fork') && killer.classKey === 'hr') {
       for (let i = 0; i < 2; i++) {
@@ -1170,11 +1179,46 @@ export class Game {
       this.delayed(0.05, () => this.explode(e.center.clone(), 3.6, 16, { friendly: false, color: 0x38e1ff }));
     }
     this.stats.kills++;
+    this.applyKillPassives(e, killer);
     if (this.player?.stats.espresso && killer === this.player) {
       const es = this.player.espresso;
       es.stacks = Math.min(5, es.stacks + 1);
       es.t = 4;
       this.player.recomputeStats();
+    }
+  }
+
+  /**
+   * The PASSIVE-module effects that fire on a kill. Host-side, local player
+   * only — a teammate's card runs on their own client, where their `player`
+   * object actually lives.
+   */
+  applyKillPassives(e, killer) {
+    const p = this.player;
+    if (!p || killer !== p || p.dead) return;
+    // NOISE COMPLAINT — a kill is a small area stun, so wading in stays viable
+    const stunR = p.passive('killStunRadius');
+    if (stunR > 0) {
+      const stun = p.passive('killStun');
+      for (const o of this.enemies) {
+        if (o.dead || o === e || dist2D(o.pos, e.pos) > stunR) continue;
+        o.applyStun?.(stun);
+      }
+    }
+    // EMPLOYEE OF THE MONTH — clearing a special is worth a window of pressure
+    if ((e.def.special || e.elite || e.def.boss) && p.passive('eliteBuff') > 0) {
+      p.eliteBuffT = p.passive('eliteBuffTime');
+      p.recomputeStats();
+      this.hud.toast('🏆 EMPLOYEE OF THE MONTH', 'item');
+    }
+    // PAPER TRAIL — someone always leaves food behind
+    const every = p.passive('snackEvery');
+    if (every > 0) {
+      p.killsSinceSnack++;
+      if (p.killsSinceSnack >= every) {
+        p.killsSinceSnack = 0;
+        this.spawnGearDrop(e.pos, { type: 'consumable', id: choose(Object.keys(CONSUMABLES)) });
+      }
     }
   }
 
@@ -1262,6 +1306,19 @@ export class Game {
         shatterIt();
         this.kpi?.onAppliance();
         this.level.kickDebris(d.pos, 2.5, 5);
+        // FIRE MARSHAL — the office itself becomes ordnance. Deferred a frame
+        // because explode() damages destructibles too: going straight to the
+        // call would recurse once per desk in the blast, and a dense bullpen
+        // would resolve the whole chain inside one damageDestructible(). A
+        // delay turns that into a cascade you can watch, one desk per beat.
+        const blast = this.player?.passive('furnitureBlast') ?? 0;
+        if (blast > 0 && !this.player.dead) {
+          const at = d.pos.clone().setY(0.6);
+          const power = this.player.stats.damage * blast;
+          const radius = this.player.passive('furnitureRadius');
+          this.delayed(0.06, () => this.explode(at, radius, power,
+            { friendly: true, owner: this.player, color: 0xff7b2d }));
+        }
         // breaking things pays — sometimes
         if (chance(0.18)) this.level.dropSoda(d.pos);
         else if (chance(0.2)) {
@@ -1397,8 +1454,10 @@ export class Game {
     mesh.add(base, dish, antenna, lamp);
     mesh.position.copy(pos);
     this.scene.add(mesh);
-    this.turrets.push({ pos: pos.clone(), mesh, ttl: 25, cd: 0, owner, dish });
+    const turret = { pos: pos.clone(), mesh, ttl: 25, cd: 0, owner, dish };
+    this.turrets.push(turret);
     this.effects.ring(pos, { color: 0x38e1ff, r1: 2, dur: 0.4 });
+    return turret;
   }
 
   updateTurrets(dt) {
@@ -1487,6 +1546,16 @@ export class Game {
       this.grantReward(killer, bdef.money, bdef.xp, boss.center);
       const item = rollItem(Math.random, bdef.mini ? 0.15 : 0.35);
       this.grantItem(killer, item);
+      // A department head owes you their signature card, and it is the SAME
+      // card every time (D 3.4). A deterministic jackpot is something a player
+      // can plan a run around; a random one is just another roll.
+      if (!bdef.mini) {
+        const id = BOSS_MODULES[boss.key];
+        if (id) this.dropModule(boss.center, 0.5, { id, kind: 'special' });
+        else this.dropModule(boss.center, 0.5);
+      } else if (chance(0.5)) {
+        this.dropModule(boss.center, 0.2);
+      }
       if (this.net.connected) this.net.sendEvent({ k: 'bossdead' });
     }
     // The mini-boss only unblocks the call — the floor is not done with you.
@@ -1810,7 +1879,7 @@ export class Game {
         if (left <= 0) player.items.delete(id); else player.items.set(id, left);
         player.recomputeStats();
         player.addMoney(info.pay / player.stats.moneyMult); // flat payout, unaffected by money mults
-        this.hud.renderItems(player.items, player.upgrades);
+        this.hud.renderItems(player.items, player.upgrades, player.modules);
         this.hud.toast(`🗞️ SHREDDED ${item.icon} ${item.name} → $${info.pay}`, 'warn');
         this.audio.sfx('card');
         this.audio.sfx('coin');
@@ -1909,19 +1978,29 @@ export class Game {
 
   spawnGearDrop(pos, payload) {
     // payload: {type:'wearable', gear} | {type:'throwable', id} | {type:'consumable', id}
+    //        | {type:'module', mod}
     const g = new THREE.Group();
-    const color = payload.type === 'wearable' ? payload.gear.color : payload.type === 'throwable' ? 0xc0392b : 0x58e07c;
-    const briefcase = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.36, 0.16),
-      new THREE.MeshStandardMaterial({ color: 0x6b4a33, roughness: 0.7, flatShading: true }));
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.06, 0.05),
-      new THREE.MeshStandardMaterial({ color: 0x3a2417, flatShading: true }));
-    handle.position.y = 0.24;
+    const color = payload.type === 'wearable' ? payload.gear.color
+      : payload.type === 'module' ? payload.mod.color
+        : payload.type === 'throwable' ? 0xc0392b : 0x58e07c;
+    // A module is not a briefcase. It reads as a punch card on sight so you can
+    // tell across a bullpen whether the thing glowing is clothes or a build.
+    const body = payload.type === 'module'
+      ? new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.3, 0.03),
+        new THREE.MeshStandardMaterial({ color: 0xf0e6c8, roughness: 0.85, flatShading: true,
+          emissive: color, emissiveIntensity: 0.35 }))
+      : new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.36, 0.16),
+        new THREE.MeshStandardMaterial({ color: 0x6b4a33, roughness: 0.7, flatShading: true }));
+    const handle = new THREE.Mesh(
+      payload.type === 'module' ? new THREE.BoxGeometry(0.44, 0.05, 0.05) : new THREE.BoxGeometry(0.18, 0.06, 0.05),
+      new THREE.MeshStandardMaterial({ color: payload.type === 'module' ? 0x2a2e36 : 0x3a2417, flatShading: true }));
+    handle.position.y = payload.type === 'module' ? 0.05 : 0.24;
     const glow = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.52, 18),
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }));
     glow.rotation.x = -Math.PI / 2;
     glow.position.y = -0.4;
-    g.add(briefcase, handle, glow);
-    briefcase.castShadow = true;
+    g.add(body, handle, glow);
+    body.castShadow = true;
     g.position.set(pos.x, 0.55, pos.z);
     this.scene.add(g);
     this.gearDrops.push({ group: g, payload, phase: Math.random() * 6 });
@@ -1943,6 +2022,8 @@ export class Game {
         const pl = d.payload;
         if (pl.type === 'wearable') {
           p.pickupGear(pl.gear);
+        } else if (pl.type === 'module') {
+          p.pickupModule(pl.mod);
         } else if (pl.type === 'throwable') {
           const def = THROWABLES[pl.id];
           if (p.throwable?.id === pl.id) p.throwable.count = Math.min(def.max, p.throwable.count + 1);
@@ -1971,8 +2052,15 @@ export class Game {
     // called on enemy death (host/solo): specials & elites drop the good stuff
     const pos = e.pos;
     if (e.def.special || e.elite) {
-      if (chance(0.4)) this.spawnGearDrop(pos, { type: 'wearable', gear: rollWearable(Math.random, e.elite ? 0.3 : 0.15) });
-      else if (chance(0.5)) this.spawnGearDrop(pos, { type: 'throwable', id: choose(Object.keys(THROWABLES)) });
+      // Punch cards come from specials and elites ONLY — never from trash
+      // (D 3.3). A module has to be worth walking toward a Micromanager for.
+      if (chance(e.elite ? 0.3 : 0.22)) {
+        this.dropModule(pos, e.elite ? 0.25 : 0.12);
+      } else {
+        const roll = Math.random();
+        if (roll < 0.5) this.spawnGearDrop(pos, { type: 'wearable', gear: rollWearable(Math.random, e.elite ? 0.3 : 0.15) });
+        else if (roll < 0.75) this.spawnGearDrop(pos, { type: 'throwable', id: choose(Object.keys(THROWABLES)) });
+      }
     } else if (e.def.boss) {
       this.spawnGearDrop(pos, { type: 'wearable', gear: rollWearable(Math.random, 0.6) });
       this.spawnGearDrop(pos, { type: 'throwable', id: choose(Object.keys(THROWABLES)) });
@@ -1980,6 +2068,26 @@ export class Game {
       if (chance(0.025)) this.spawnGearDrop(pos, { type: 'throwable', id: choose(Object.keys(THROWABLES)) });
       else if (chance(0.03)) this.spawnGearDrop(pos, { type: 'consumable', id: choose(Object.keys(CONSUMABLES)) });
     }
+  }
+
+  /**
+   * Roll and drop one punch card.
+   *
+   * Two things bend the roll on the way out: the pity timer (a run of greys
+   * raises the floor) and your combo at the moment of the kill — the detour
+   * test from D 3.1, which is what makes chaining kills toward a special worth
+   * more than clearing it safely.
+   */
+  dropModule(pos, rarityBoost = 0, opts = {}) {
+    const comboTier = Math.min(0.3, Math.floor(this.combo.count / 10) * 0.1);
+    const overtime = this.combo.count >= 10 ? (this.player?.passive('comboLoot') ?? 0) : 0;
+    const mod = rollModule(Math.random, {
+      ...opts,
+      rarityBoost: this.moduleLuck.boost(rarityBoost + comboTier + overtime),
+    });
+    this.moduleLuck.observe(mod);
+    this.spawnGearDrop(pos, { type: 'module', mod });
+    return mod;
   }
 
   // ================= inventory (Tab) =================
@@ -2020,6 +2128,7 @@ export class Game {
       level: this.player.level,
     });
     this.player.applyUpgrade(this.draftPicks[i]);
+    this.director?.grantSpikeGrace();   // let the raise land before the tower answers
     this.draftQueue--;
     this.draftOpen = false;
     this.draftPicks = null;

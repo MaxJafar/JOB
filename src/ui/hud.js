@@ -3,6 +3,7 @@ import { formatTime, formatMoney, clamp } from '../core/utils.js';
 import { ITEM_BY_ID } from '../game/items.js';
 import { UPGRADE_BY_ID } from '../game/upgrades.js';
 import { THROWABLES, CONSUMABLES, describeStats } from '../game/gear.js';
+import { describeModule } from '../game/modules.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -41,6 +42,7 @@ export class Hud {
     this.abilities = {
       primary: $('ability-primary'),
       secondary: $('ability-secondary'),
+      special: $('ability-special'),
       dash: $('ability-dash'),
     };
     this.kpiPanel = $('kpi-panel');
@@ -57,6 +59,7 @@ export class Hud {
     this.pocketConsume = $('pocket-consume');
     this.invRoot = $('inv-root');
     this.invSlots = $('inv-slots');
+    this.invModules = $('inv-modules');
     this.invBag = $('inv-bag');
     this.budgetEl = $('hud-budget');
     this.navArrow = $('nav-arrow');
@@ -117,6 +120,7 @@ export class Hud {
     this.sweep(this.abilities.secondary, p.classDef.secondary.hold ? 0 : p.secondaryCd / (p.classDef.secondary.cd || 1));
     this.sweep(this.abilities.dash, p.dashCd / p.stats.dashCd);
     this.sweep(this.abilities.primary, 0);
+    if (p.modules?.special) this.sweep(this.abilities.special, p.specialCd / (p.specialCooldown() || 1));
     // goo vignette wears off
     if (p.gooT <= 0) this.vignette.classList.remove('goo');
     // elevator nav arrow: rotates toward the exit when nothing urgent is happening
@@ -138,15 +142,19 @@ export class Hud {
       this.ammoCount.textContent = p.ammo;
       this.ammoMag.textContent = `/ ${prim.mag}`;
       this.ammoCount.classList.toggle('low', p.ammo <= Math.ceil(prim.mag * 0.25));
-      this.ammoNote.classList.toggle('hidden', p.reloadT <= 0);
-      this.ammoNote.textContent = 'RELOADING…';
+      // a charged primary needs its wind-up on screen or the whole skill demand
+      // is invisible: reload still wins the line, because it is the emergency
+      const charging = prim.charge && p.chargeAmt > 0;
+      this.ammoNote.classList.toggle('hidden', p.reloadT <= 0 && !charging);
+      this.ammoNote.textContent = p.reloadT > 0 ? 'RELOADING…'
+        : p.chargeAmt >= 1 ? '◆ FULL CHARGE' : `CHARGING ${Math.round(p.chargeAmt * 100)}%`;
     } else if (prim.heat) {
       this.ammoBox.classList.remove('hidden');
       this.ammoCount.textContent = `${Math.round(p.heatGauge * 100)}°`;
       this.ammoMag.textContent = 'HEAT';
       this.ammoCount.classList.toggle('low', p.heatGauge > 0.75 || p.overheatLock > 0);
       this.ammoNote.classList.toggle('hidden', p.overheatLock <= 0);
-      this.ammoNote.textContent = 'REBOOTING…';
+      this.ammoNote.textContent = prim.heatNote ?? 'REBOOTING…';
     } else {
       this.ammoBox.classList.add('hidden');
     }
@@ -200,6 +208,22 @@ export class Hud {
     this.draftRoot.classList.add('hidden');
   }
 
+  /**
+   * The SPECIAL chip only exists once a card fills the slot — an empty slot on
+   * the bar for the first ten minutes of every run is a permanent reminder of
+   * something you do not have (D 6.2: introduce elements as they are earned).
+   */
+  setModules(p) {
+    const s = p.modules?.special;
+    this.abilities.special.classList.toggle('hidden', !s);
+    if (s) {
+      this.abilities.special.querySelector('.ability-icon').textContent = s.icon;
+      this.abilities.special.title = `${s.name} — ${describeModule(s)}`;
+      this.abilities.special.style.borderColor = `${s.css}66`;
+    }
+    this.renderItems(p.items, p.upgrades, p.modules);
+  }
+
   refreshPockets(p) {
     const th = p.throwable ? THROWABLES[p.throwable.id] : null;
     this.pocketThrow.classList.toggle('filled', !!th);
@@ -229,6 +253,35 @@ export class Hud {
       slotRow('BODY', p.gearSlots.body) +
       slotRow('LEGS', p.gearSlots.legs) +
       slotRow('TRINKET', p.gearSlots.trinket);
+    // ---- punch-card modules: the two slots that decide how you fight ----
+    const modRow = (type, m, key) => `
+      <div class="inv-slot ${m ? '' : 'empty'}" ${m ? `style="border-color:${m.css}55"` : ''}>
+        <div class="is-type">${type}${key ? ` <small>[${key}]</small>` : ''}</div>
+        <div class="is-icon">${m ? m.icon : '🗃️'}</div>
+        <div>
+          <div class="is-name" ${m ? `style="color:${m.css}"` : ''}>${m ? m.name : 'slot empty — specials, KPIs and bosses drop cards'}</div>
+          ${m ? `<div class="is-stats">${describeModule(m)}${m.from ? ` <em>· from ${m.from}</em>` : ''}</div>` : ''}
+        </div>
+      </div>`;
+    this.invModules.innerHTML =
+      modRow('SPECIAL', p.modules.special, 'X') +
+      modRow('PASSIVE', p.modules.passive, '') +
+      (p.moduleBag.length
+        ? p.moduleBag.map((m, i) => `
+          <div class="inv-bag-row">
+            <div class="is-icon">${m.icon}</div>
+            <div class="is-name" style="color:${m.css}">${m.name}</div>
+            <div class="is-stats">${describeModule(m)}</div>
+            <button data-mod="${i}">INSTALL</button>
+          </div>`).join('')
+        : '');
+    this.invModules.querySelectorAll('button[data-mod]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const m = p.moduleBag[parseInt(btn.dataset.mod, 10)];
+        if (m) { p.equipModule(m); this.showInventory(p); }
+      });
+    });
+
     this.invBag.innerHTML = p.gearBag.length
       ? p.gearBag.map((g, i) => `
         <div class="inv-bag-row">
@@ -296,8 +349,18 @@ export class Hud {
     setTimeout(() => el.remove(), 3200);
   }
 
-  renderItems(items, upgrades = null) {
+  renderItems(items, upgrades = null, modules = null) {
     this.itemTray.innerHTML = '';
+    // the passive card has no key and no cooldown, so the tray is where it lives
+    if (modules?.passive) {
+      const m = modules.passive;
+      const chip = document.createElement('div');
+      chip.className = 'item-chip rare';
+      chip.style.borderColor = `${m.css}88`;
+      chip.title = `${m.name} — ${describeModule(m)}`;
+      chip.innerHTML = m.icon;
+      this.itemTray.appendChild(chip);
+    }
     for (const [id, count] of items) {
       const item = ITEM_BY_ID[id];
       if (!item) continue;
@@ -383,6 +446,7 @@ export class Hud {
     this.setKpi(null);
     this.pocketThrow?.classList.remove('filled');
     this.pocketConsume?.classList.remove('filled');
+    this.abilities.special?.classList.add('hidden');
     this.navArrow?.classList.add('hidden');
     this.comboMeter.classList.add('hidden');
     this.itemTray.innerHTML = '';

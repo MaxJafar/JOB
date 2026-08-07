@@ -42,10 +42,11 @@ Steam Datagram Relay P2P — see [STEAM.md](STEAM.md).
 | `WASD` / `Shift` / `Space` | move / sprint / jump |
 | `Ctrl` or `C` while sprinting | slide (slide→jump keeps momentum) |
 | `Q` | coffee dash (i-frames) |
-| `LMB` / `RMB` | primary / class ability |
-| `R` | reload (ranged classes run mags; IT manages a heat gauge) |
+| `LMB` / `RMB` | primary / class signature (the chassis — loot can never replace either) |
+| `X` | **SPECIAL module** — whatever punch card is in the slot |
+| `R` | reload (ranged classes run mags; IT and the Barista run heat gauges) |
 | `G` / `F` | throw grenade / use consumable |
-| `Tab` | inventory — equip looted clothing & gear |
+| `Tab` | inventory — install punch cards, equip looted clothing & gear |
 | `V` | toggle first ↔ third person |
 | `E` | interact (crates, elevator, office utilities) |
 | `Esc` / `P` | pause |
@@ -85,6 +86,20 @@ code path rather than failing to boot.
    every one renders on your character *and* on your teammates', with rarity
    (SENIOR / EXECUTIVE) visible as a glow; plus throwables (`G` — stapler
    grenades, tape balls, coffee molotovs) and consumables (`F`).
+1b. **Building your character is the game.** Your class is a *chassis* — the LMB
+   weapon and the RMB signature are fixed forever. Everything else is loot:
+   two slots hold **punch-card modules**, a SPECIAL on `X` and a PASSIVE that
+   quietly rewrites a rule. Specials, elites, KPIs and bosses drop them; trash
+   mobs never do. The special cards are the other classes' abilities — find a
+   Body Check card as the Intern and you get to shoulder-charge a crowd — and
+   the passives change how the game works rather than what your numbers are
+   (furniture you break detonates; every kill stuns the neighbours; a killing
+   blow leaves you at 1 HP once per floor). Three rarity tiers scale the
+   numbers *and* cut the cooldown, a pity timer stops a run of greys, your
+   combo at the moment of the kill sweetens the roll, and every department head
+   drops **the same card every time** — a jackpot you can plan a run around.
+   Pick one up and the difficulty clock stops for 20 seconds, so you actually
+   get to feel it.
 2. Every level-up triggers a **PERFORMANCE REVIEW**: draft 1 of 3 perks,
    including **class evolutions** (ricochet staples, dust-storm broom waves,
    tax bombs, forking pink slips, overclocked beams, boomerang cards…).
@@ -146,6 +161,8 @@ Dash (`Q`) has i-frames and shakes off the Micromanager.
 | 📇 THE SALES REP | piercing business cards · "Cold Call" knockback cone · fastest |
 | 🧯 THE MARKETING MANAGER | **rides an office chair** · CO₂ extinguisher cone (chills crowds) · "Full Send" rocket-boost ram · cannot slide, drifts through turns |
 | 🥊 THE FACILITIES GUY | **no weapon — hands** · jab/jab/HAYMAKER combo · "Body Check" shoulder charge · 235 HP, 65% knockback resist |
+| ☕ THE BARISTA | unbolted steam wand · **hard falloff cliff at 8m** · "Steam Burst" spends the entire heat gauge at once — run hot for a bigger burst, and the lockout is the price |
+| 📐 THE ANALYST | **hold-to-charge** Ledger Rifle — 0.55× panicked, 3.2× fully charged and it pierces the whole line · crits pay ×3 · "Risk Assessment" flags one target for +45% · genuinely helpless in a swarm |
 
 ## Departments
 
@@ -174,9 +191,11 @@ grenade. 🪢 **DASH TO BREAK** — the Mediator is reeling you in.
 ```
 src/
   core/    input (pointer-lock), synth audio + generative elevator muzak, math
-  game/    game.js (orchestrator) · player (FP/TP rig) · classes · enemies ·
+  game/    game.js (orchestrator) · player (FP/TP rig) · classes (chassis) ·
+           modules (punch-card loot: PASSIVE + SPECIAL slots) · enemies ·
            bosses · director · level (seeded floor gen) · items · projectiles ·
            effects · props · characters · meta (localStorage perks)
+           bot/   AI teammates that drive the real class kits
   net/     net.js — host-authoritative co-op over a pluggable transport
   ui/      hud.js · menus.js
 server.js  self-hosted WebSocket relay (rooms, host promotion)

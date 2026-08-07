@@ -34,6 +34,8 @@ export class Telemetry {
       floors: [],
       drafts: [],
       items: [],
+      modules: [],      // {id, rarity, at} — the v0.4 gate reads pick rates off this
+      moduleUses: {},   // id -> count; a card nobody presses X for is a dead card
       kpis: [],
       events: [],
       combo: { best: 0, bestAt: 0 },
@@ -69,6 +71,16 @@ export class Telemetry {
   itemPicked(id, rarity, runTime) {
     if (!this.run) return;
     this.run.items.push({ id, rarity, at: +runTime.toFixed(2) });
+  }
+
+  modulePicked(id, rarity, runTime) {
+    if (!this.run) return;
+    this.run.modules.push({ id, rarity, at: +runTime.toFixed(2) });
+  }
+
+  moduleUsed(id) {
+    if (!this.run) return;
+    this.run.moduleUses[id] = (this.run.moduleUses[id] ?? 0) + 1;
   }
 
   kill(runTime, enemyKey, elite) {

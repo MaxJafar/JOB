@@ -23,6 +23,13 @@ export class Director {
   resetFloor(floorIndex) {
     this.obs?.reset();
     this.model?.reset();
+    // Sawtooth protection (D 1.2). Difficulty is a function of elapsed time, so
+    // without this a power spike is instantly eaten by the curve that was going
+    // to arrive anyway and the player never gets to FEEL stronger. Time spent
+    // under grace is subtracted from the difficulty clock — the run keeps
+    // ticking, the pressure does not.
+    this.spikeGraceT = 0;
+    if (floorIndex === 0) this.diffFrozen = 0;   // run-scoped, like game.runTime
     this.floorIndex = floorIndex;
     this.credits = 8;
     this.spawnTimer = 2;
@@ -48,9 +55,29 @@ export class Director {
   // Risk of Rain style difficulty coefficient
   get coeff() {
     const g = this.game;
-    return (1 + (g.runTime / 60) * TUNE.diffPerMinute)
+    const t = Math.max(0, g.runTime - (this.diffFrozen ?? 0));
+    return (1 + (t / 60) * TUNE.diffPerMinute)
       * (1 + this.floorIndex * TUNE.diffPerFloor)
       * (1 + g.loopCount * TUNE.diffPerLoop);
+  }
+
+  /**
+   * Hold the difficulty curve for `secs` after a power spike — a module pickup
+   * or a draft — so the spike is tasted before the tower answers it. Grace
+   * never stacks; it extends.
+   */
+  grantSpikeGrace(secs = 20) {
+    this.spikeGraceT = Math.max(this.spikeGraceT ?? 0, secs);
+  }
+
+  /** Bank the time the difficulty curve is not allowed to spend. */
+  tickSpikeGrace(dt) {
+    if (this.spikeGraceT <= 0) return;
+    // only bank the part of dt that is actually still under grace, or a huge
+    // frame at the tail end would freeze more time than was ever granted
+    const used = Math.min(dt, this.spikeGraceT);
+    this.spikeGraceT -= dt;
+    this.diffFrozen = (this.diffFrozen ?? 0) + used;
   }
 
   get stage() {
@@ -133,6 +160,8 @@ export class Director {
   update(dt) {
     const game = this.game;
     this.floorTime += dt;
+
+    this.tickSpikeGrace(dt);
 
     // ---- observe → pressure → outputs (Director 2.0) ----
     this.obs.sample(game, dt);

@@ -79,7 +79,12 @@ export class KpiTracker {
     game.hud.announce('✅ KPI MET — BONUS APPROVED', 2.4, true);
     game.audio.sfx('item-rare');
     const coeff = game.director.coeff;
-    if (Math.random() < 0.45) {
+    // A KPI is an optional detour, so it has to pay in the currency detours are
+    // worth taking for — a punch card, not another $70 (D 3.1).
+    if (Math.random() < 0.35) {
+      game.dropModule(game.player.pos.clone(), 0.3);
+      game.hud.toast('🗃️ BONUS: PUNCH CARD FILED TO YOUR DESK', 'item');
+    } else if (Math.random() < 0.45) {
       game.grantItem(game.player, rollItem(Math.random, 0.25));
     } else {
       const money = Math.round(70 * (1 + (coeff - 1) * 0.5));

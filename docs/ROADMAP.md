@@ -172,23 +172,51 @@ tiers; Electron context isolation for the steamworks bridge; roster freeze
 - **Gate:** greybox Finance floor beats the v0.1 box arena in blind A/B playtest;
   time-to-elevator within budget (8–12 min).
 
-### v0.4 — "NEW HIRES" (archetype + slot system rework) — L
+### ✅ v0.4 — "NEW HIRES" (archetype + slot system rework) — shipped
 *User request: 2 melee / 2 short / 2 long, passive + special slots filled by loot.*
-- [ ] Archetype chassis system (see §2 spec): fixed signature ability loot can never
-      replace, three-word identity, one designed weakness *(D 4.2, 4.3)*.
-- [ ] **Module slots**: PASSIVE slot + SPECIAL-ATTACK slot, filled by dropped
-      punch-card modules; old class abilities (Pink Slips, Cold Call, Tax Audit,
-      Router Turret, Mandatory Meeting…) become the first 10 SPECIAL modules —
-      full content reuse.
-- [ ] Drop rules *(D 3.3, 3.4)*: modules drop from specials/elites/KPIs/bosses only —
-      never trash mobs; rarity tiers upgrade module numbers; pity timer on rare+;
-      boss signature modules are deterministic jackpots.
-- [ ] Sawtooth protection *(D 1.2)*: difficulty tick suppressed 20s after module
-      pickup/draft so every power spike gets tasted.
-- [ ] Combo → loot wiring *(D 3.1 detour test)*: combo tier at kill raises drop-rarity
-      roll; KPI completion pays rerolls/module slots/elevator discounts.
-- **Gate:** telemetry shows every archetype picked ≥10% and no module >50% pick-rate
-  *(D 3.5)*; "patch my weakness vs amplify my strength" visibly drives draft choices.
+
+The chassis/slot split landed **additively**: no playable class was removed, so the
+roster is 10 (the original 8 plus the two hires the §2 grid was missing). Every
+class is now a chassis — fixed LMB primary + fixed RMB signature that loot can
+never replace — with two loot-filled slots on top.
+
+- [x] **Module slots** — `src/game/modules.js`. PASSIVE slot + SPECIAL slot (`X`),
+      filled by dropped punch cards. The first eight SPECIAL cards ARE the old
+      class kits (Tax Audit, Mandatory Meeting, Cold Call, Deploy Router, Staple
+      Fan, Pink Slip Storm, Body Check, Full Send) plus two new ones (Shredder
+      Vortex, Evacuation Drill), so an Intern who finds a Body Check card gets to
+      shoulder-charge a crowd. Ten passives, all rule-changers rather than stat
+      sticks *(D 3.5)* — Ergonomic Chair, Caffeine Drip, Open Floor Plan,
+      Standing Desk, Backup Server, Noise Complaint, Overtime Pay, Employee of
+      the Month, Paper Trail, Fire Marshal.
+- [x] **Chassis-normalised power.** A card scales off the player's damage GROWTH,
+      not the chassis's per-hit stat — otherwise the same card is four times
+      stronger on the Facilities Guy (26 dmg/swing) than on the Accountant
+      (6 dmg/shot). A module is worth the same to everyone.
+- [x] Drop rules *(D 3.3, 3.4)*: cards drop from **specials / elites / KPIs /
+      bosses only**, never trash. Three rarity tiers scale the numbers AND cut
+      the cooldown. Pity timer raises the floor after a run of greys. Each
+      department head drops a **deterministic** signature card.
+- [x] Sawtooth protection *(D 1.2)*: the difficulty clock is frozen for 20s after
+      a module pickup or a draft, so a power spike is tasted before the tower
+      answers it. Grace extends rather than stacking, and never banks more time
+      than it granted.
+- [x] Combo → loot wiring *(D 3.1 detour test)*: your combo at the moment of the
+      kill raises the card's rarity roll; OVERTIME PAY stacks on top of that.
+- [x] **Two new hires** completing the 2 melee / 2 short / 2 long grid:
+      **THE BARISTA** (steam wand with a hard 8m falloff cliff; *Steam Burst*
+      spends the whole heat gauge, so running hot is the risk-management loop)
+      and **THE ANALYST** (hold-to-charge Ledger Rifle, 0.55× on a panic shot to
+      3.2× on a full one which pierces the entire line; *Risk Assessment* flags
+      one target for +45%, and the swarm weakness is left standing on purpose —
+      patching it is what the SPECIAL slot is for).
+- [x] Bot doctrine for both hires, so an AI teammate plays the gauge and the
+      wind-up rather than falling back to the Intern's.
+- [x] Telemetry records module picks and per-card use counts — the gate below
+      reads straight off it.
+- **Gate (still to measure):** telemetry shows every archetype picked ≥10% and no
+  module >50% pick-rate *(D 3.5)*; "patch my weakness vs amplify my strength"
+  visibly drives draft choices.
 
 ### v0.5 — "DRESS CODE" (equipment & visible gear) — M
 *User request: equipment, loot, clothing with effects.*
@@ -285,6 +313,14 @@ Function-first grid *(D 4.1)*; each: signature ability (never replaced by loot),
 three-word identity, one designed weakness, distinct demanded skill *(D 4.2, 4.3)*.
 Old HR/Sales/Accountant kits become loot modules — nothing is wasted.
 
+**Shipped as of v0.4:** the BARISTA and the ANALYST are in. THE BRUISER shipped
+earlier as **THE FACILITIES GUY** (fists, jab/jab/haymaker, Body Check) — same
+chassis, different nameplate. The JANITOR, IT SUPPORT and INTERN were already
+playable. The rest of the original roster (Accountant, HR Rep, Sales Rep,
+Marketing Manager) was **kept rather than replaced**: their abilities became
+punch cards *and* they stayed selectable, which costs nothing and gives the
+module pool more chassis to be interesting on.
+
 | | Archetype | Range | Signature (fixed) | Identity | Weakness | Skill demanded |
 |---|---|---|---|---|---|---|
 | 🥊 | **THE BRUISER** — jacked, fists only, wrap "braces" as tiered gear | Melee | *Haymaker combo* — L-L-uppercut chain; shoulder-charge gap closer | Loud, unstoppable, close | No answer to flyers | commitment & spacing |
@@ -299,8 +335,8 @@ v1.0 compromise: BARISTA's overheat vents as an ally speed/heal aura in co-op �
 promoted to a full 7th support archetype post-EA if co-op data supports it.
 
 **Slots per archetype:** 1 PASSIVE module + 1 SPECIAL-ATTACK module (loot punch-cards),
-5 gear slots (head/body/hands/feet/trinket), plus level-up drafts. Build identity =
-chassis × modules × gear × drafts.
+4 gear slots (head/body/legs/trinket — the v0.36 wardrobe), plus level-up drafts.
+Build identity = chassis × modules × gear × drafts.
 
 ---
 

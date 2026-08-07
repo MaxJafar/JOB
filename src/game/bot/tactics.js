@@ -508,6 +508,98 @@ export const BOT_DOCTRINE = {
       reason: 'body check through it',
     },
   },
+
+  // --------------------------------------------------------------- barista
+  // Wants to be uncomfortably close and knows it. Runs the gauge hot on
+  // purpose, because Steam Burst is worth whatever the gauge is holding —
+  // then dumps it before the lock and walks out of the crater.
+  barista: {
+    role: 'mid',
+    band: { min: 2, hold: 5, max: 8 },
+    weapon: {
+      kind: 'cone',
+      speed: 0,
+      range: 8,       // the falloff cliff — past this the class does nothing
+      arcDeg: 34,
+      aimBy: 'yaw',
+      losMode: 'strict',
+      aoe: 0,
+    },
+    aim: {
+      acquireDeg: 0,
+      settleDeg: 0,
+      settleTime: 0.22,
+      trackPenalty: 0,
+      reactMin: 0.16,
+      reactMax: 0.26,
+      fireYawDeg: 14,   // inside the +/-17 cone with margin
+      losGrace: 0,
+    },
+    reload: null,
+    // Deliberately hotter than IT's doctrine. IT wants the beam up forever, so
+    // it cuts at 0.80; the Barista's resource is SPENT by the secondary, so
+    // sitting near the ceiling is correct play — the lock only bites if the
+    // burst is on cooldown, and cutting at 0.92 leaves room to notice.
+    heat: {
+      perShot: 0.032,
+      decay: 0.55,
+      beamHeatDecay: 1.6,
+      lockTime: 1.8,
+      cutHigh: 0.92,
+      cutLow: 0.45,
+      overclockCutHigh: 0.95,
+    },
+    secondary: {
+      aimMode: 'blast',
+      // Never dump a cold gauge: a 0.6x burst on a 6 s cooldown is the whole
+      // class thrown away. Below half heat this only fires as an escape.
+      radius: 7.5,   // the burst reaches 4 + heat*3.5; guard the worst case
+      trigger: (c) =>
+        ((c.bot?.heatGauge ?? 0) > 0.55 && countWithin(c, 6) >= 2) ||
+        ((c.bot?.heatGauge ?? 0) > 0.85) ||
+        (c.hpFrac < 0.35 && countWithin(c, 4) >= 1),
+      reason: 'vent the gauge into the crowd',
+    },
+  },
+
+  // --------------------------------------------------------------- analyst
+  // The one standing furthest back doing the most damage. Holds the charge,
+  // takes the long line, and is genuinely in trouble if anything closes.
+  analyst: {
+    role: 'ranged',
+    band: { min: 11, hold: 17, max: 26 },
+    weapon: {
+      kind: 'projectile',
+      speed: 112,      // 72 + full-charge 40: effectively no lead inside 20 m
+      ttl: 2.6,
+      range: 26,
+      aimBy: 'ray',
+      losMode: 'grace',
+      aoe: 0,
+      pierce: 99,      // a full charge goes through the whole line
+      homing: 0,
+    },
+    aim: {
+      // The slowest, most deliberate aim in the game — it should be visible
+      // that this bot is lining a shot up rather than snapping to it.
+      acquireDeg: 4.5,
+      settleDeg: 1.1,
+      settleTime: 0.6,
+      trackPenalty: 22,
+      reactMin: 0.26,
+      reactMax: 0.42,
+      fireYawDeg: 40,
+      losGrace: 0.35,
+    },
+    reload: { at: 0.34, safeDist: 10 },
+    // Same trick Sales uses, at rifle range: shoot the angle, not the target.
+    pierceSeek: { radius: 0.85, maxRange: 26, period: 0.25 },
+    secondary: {
+      aimMode: 'target',
+      trigger: (c) => !!c.target && (c.target.boss || c.target.rare || c.target.big || c.target.special),
+      reason: 'flag the thing that matters',
+    },
+  },
 };
 
 /** How often the secondary trigger predicate is re-evaluated, in seconds. */
@@ -1493,6 +1585,11 @@ function tryPrimary(game, bot, doc, cls, state, c, target, losNow, dist, dt) {
   // Decaying on every non-tick frame gave the bot an 88% beam duty cycle
   // against a physical ceiling of 60.8% — the class's entire resource, and the
   // thing the kit is balanced around, silently stopped existing.
+  // A charge does not survive an interruption. `state.holding` still carries
+  // LAST frame's answer at this point, so this is the one place that knows the
+  // trigger came up — lost LOS, started a reload, got stunned — and the
+  // wind-up has to start over rather than banking through it.
+  if (!state.holding) state.chargeT = 0;
   state.holding = false;
 
   if (state.reactT > 0) return false; // the trigger delay after acquiring
@@ -1579,6 +1676,17 @@ function tryPrimary(game, bot, doc, cls, state, c, target, losNow, dist, dt) {
   // tick lands this frame, so the cooldown gate goes last — see `holding` above.
   state.holding = true;
   if ((bot.primaryCd ?? 0) > 0) return false;
+
+  // Charged primaries (the Analyst). Bot._executeCombat calls primary.fire with
+  // no charge argument, which defaults to a FULL charge — so without a wind-up
+  // here the bot would land a 3.2x piercing shot every 0.18 s, roughly five
+  // times a human's best cadence. Hold the trigger for the kit's own charge
+  // time and the bot pays exactly what the player pays.
+  if (cls.primary.charge) {
+    state.chargeT = (state.chargeT ?? 0) + dt;
+    if (state.chargeT < cls.primary.charge) return false;
+    state.chargeT = 0;
+  }
 
   // --- commit (see the optimistic-commit note on decideCombat) --------------
   bot.primaryCd = cls.primary.cd * (bot.stats?.atkCdMult ?? 1);
@@ -1746,6 +1854,12 @@ function prepareSecondary(game, bot, doc, c, target) {
       // question is whether Karen would be marked — and auditT alone does not
       // provoke her, so there is nothing to guard.
       return true;
+
+    // A self-centred AoE that actually DEALS damage — Steam Burst. Unlike the
+    // 'self' case above, this one can provoke Karen, and she is standing at the
+    // centre of the blast by definition, so the sphere is checked.
+    case 'blast':
+      return !karenInSphere(c, bot.pos.x, bot.pos.z, sec.radius ?? 8);
 
     case 'point': {
       // Recomputed, NOT reused from the trigger: `_cluster` is a shared module

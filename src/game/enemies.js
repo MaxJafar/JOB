@@ -615,6 +615,9 @@ export class Enemy {
     this.attackCd -= dt;
     this.detachCd -= dt;
     this.auditT = Math.max(0, this.auditT - dt);
+    // clear the mark's STRENGTH with the mark, or a lapsed PATENTED audit keeps
+    // paying out the next time a weaker one lands
+    if (this.auditT <= 0 && this.auditPower !== undefined) this.auditPower = undefined;
     this.rallyT = Math.max(0, (this.rallyT ?? 0) - dt);
 
     // damage over time (shredder bleed)

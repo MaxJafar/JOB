@@ -166,6 +166,19 @@ export function makePerson(opts = {}) {
   torso.add(headG);
   parts.head = headG;
 
+  // apron: chest bib + a skirt panel that hangs past the hip, so the silhouette
+  // reads "service staff" from across a bullpen even at LOD distance
+  if (accessories.includes('apron')) {
+    const bib = box(B.chestW * 0.66, B.chestH * 0.5, 0.03, 0x2b3a30);
+    bib.position.set(0, B.chestH * 0.42, B.chestD / 2 + 0.015);
+    const skirt = box(B.chestW * 0.86, 0.34, 0.03, 0x2b3a30);
+    skirt.position.set(0, -0.1, B.chestD / 2 + 0.01);
+    const strapL = box(0.04, B.chestH * 0.42, 0.03, 0x2b3a30);
+    strapL.position.set(-B.chestW * 0.22, B.chestH * 0.76, B.chestD / 2 + 0.01);
+    const strapR = strapL.clone(); strapR.position.x = B.chestW * 0.22;
+    torso.add(bib, skirt, strapL, strapR);
+  }
+
   // lanyard hangs off the chest, not the head — but it's authored the same way
   if (accessories.includes('lanyard')) {
     const cordL = box(0.03, 0.28, 0.03, 0x2a3a5c); cordL.position.set(-0.11, B.chestH - 0.2, B.chestD / 2); cordL.rotation.z = 0.24;
@@ -446,6 +459,30 @@ export function makeHeldItem(kind) {
       const handle = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.018, 5, 10), mat(0xf2f6ff, { rough: 0.5 }));
       handle.position.set(0.13, 0, 0); handle.rotation.y = Math.PI / 2;
       g.add(cup, brew, handle);
+      break;
+    }
+    case 'steamwand': {
+      // an espresso machine's steam arm, unbolted and carried
+      const pitcher = cyl(0.11, 0.13, 0.24, 0xc9d2dc, 10, { metal: 0.8, rough: 0.25 });
+      const spout = cyl(0.02, 0.02, 0.44, 0xd9e2ec, 6, { metal: 0.9, rough: 0.15 });
+      spout.rotation.x = Math.PI / 2; spout.position.set(0, 0.06, 0.26);
+      const tip = cyl(0.035, 0.02, 0.07, 0x8f99a5, 8, { metal: 0.9, rough: 0.2 });
+      tip.rotation.x = Math.PI / 2; tip.position.set(0, 0.06, 0.5);
+      const valve = box(0.07, 0.07, 0.07, 0x1d222b); valve.position.set(0, 0.14, 0.06);
+      g.add(pitcher, spout, tip, valve);
+      break;
+    }
+    case 'ledgerrifle': {
+      // a bound ledger with a barrel through it — the paperwork IS the weapon
+      const stock = box(0.11, 0.15, 0.42, 0x5a3d22); stock.position.z = -0.1;
+      const spine = box(0.13, 0.17, 0.06, 0x2f4c3a); spine.position.z = -0.3;
+      const barrel = cyl(0.028, 0.028, 0.68, 0x3a4049, 8, { metal: 0.8, rough: 0.3 });
+      barrel.rotation.x = Math.PI / 2; barrel.position.z = 0.4;
+      const scope = cyl(0.035, 0.035, 0.2, 0x1d222b, 8); scope.rotation.x = Math.PI / 2;
+      scope.position.set(0, 0.13, 0.06);
+      const lens = cyl(0.033, 0.033, 0.01, 0xffd23f, 8, { emissive: 0xffd23f, emissiveIntensity: 1.2 });
+      lens.rotation.x = Math.PI / 2; lens.position.set(0, 0.13, 0.17);
+      g.add(stock, spine, barrel, scope, lens);
       break;
     }
     case 'gavel': {
