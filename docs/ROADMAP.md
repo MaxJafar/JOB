@@ -74,6 +74,46 @@ with a tagged playable build + a written playtest question list *(D 9.4)*.
 - [ ] Still open (v0.3.x): corridor hazards variety, fast/risky vs slow/safe dual
       routes, per-floor utility themes, greybox metrics audit vs co-op widths.
 
+### ✅ v0.36 — "THE FLOOR PLATE" (shipped)
+*User-directed rework: the floor is a hub, the mob is the mechanic, and the
+department you're on decides how you die.*
+
+- [x] **Hub floor generator** replacing the linear spine. Central ELEVATOR CORE
+      (a free-standing shaft, the only way up) with four wings out to the fire
+      stairs on each side of the plate. `level.playerSpawns[]` is seat-indexed
+      off the co-op roster, so a four-player team lands on four different sides
+      and converges. Wing room types (bullpen / conference / lounge / records)
+      are shuffled per floor from the floor seed, so all four approaches differ
+      and guests build an identical plate. Verified over 200 generated levels:
+      every wing joins the core, no spawn or boarding spot lands inside a
+      collider, every paid room stays attached to its host.
+- [x] **One crescendo per floor, at the centre.** The mid-floor arena lockdown
+      is folded into the elevator call: shutters drop on all four core mouths →
+      three scripted waves → the biome **FLOOR LEAD** (mini-boss) at 45%
+      progress, which hard-gates the bar at 90% until killed → Department Head
+      arrives in the elevator. One place, one build-up, one payoff.
+- [x] **Two new floors** — HUMAN RESOURCES (fl. 4) and I.T. (fl. 8) — with
+      CHRO/CTO heads and 6 floor leads, taking the tower to 7 floors.
+- [x] **Biome rosters (10 new mobs).** HR: Talent Partners whose hits root you
+      and whose bodies each tax your movement (a crowd is a cage, not a damage
+      race) + The Mediator's 1:1 tether. IT: chaining tesla arcs, walking
+      damage-aura server racks, The Sysadmin's EMP zones. Marketing: 13 HP Brand
+      Interns in huge screaming hordes + The Live-Streamer. Sales: charging
+      Junior Closers.
+- [x] **Player status effects** — stun (with diminishing returns so you always
+      get an input back, and dash as the one early exit), shock (abilities
+      offline), tether, crowd drag — surfaced as HUD chips.
+- [x] **Two new classes** — THE MARKETING MANAGER (rides a task chair with real
+      drift, CO₂ extinguisher cone that chills crowds, rocket-boost ram) and
+      THE FACILITIES GUY (bulky build, no weapon, jab/jab/haymaker combo, body
+      check, 65% knockback resist). `makePerson` gained body types.
+- [x] **Wardrobe** — four slots (HEAD/BODY/LEGS/TRINKET), 19 pieces, all of
+      them visible, sized off the rig's build block so one definition dresses
+      every body type; equipped gear replicates to co-op teammates.
+- [x] **Authentic stapler** — hinged magazine, anvil plate, chrome hinge, staple
+      strip — plus extinguisher, boxing gloves, tesla wand, clipboard, ring
+      light and selfie-stick props.
+
 ### ✅ v0.35 — "ENGINE HARDENING" (shipped)
 *Adopted from the architecture review. Full contract: [ENGINE.md](ENGINE.md).*
 

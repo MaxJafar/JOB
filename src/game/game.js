@@ -26,6 +26,7 @@ import { EnemyLOD } from '../ai/lod.js';
 import { PerformanceGovernor } from '../render/governor.js';
 import { InstancingManager } from '../render/instancing.js';
 import { DecalSystem } from '../render/decals.js';
+import { VFXManager } from '../render/vfx.js';
 import { Telemetry } from '../core/telemetry.js';
 import { crashHandler } from '../core/errors.js';
 import { debugEnabled } from '../dev/enabled.js';
@@ -80,6 +81,7 @@ export class Game {
     this.enemyLOD = new EnemyLOD(this);    // 60/20/5/1 Hz AI tiers
     this.instancing = new InstancingManager(this.scene);
     this.decals = new DecalSystem(this.instancing);  // 150 blood splats = 1 draw call
+    this.vfx = new VFXManager(this.scene);            // named effects, one registry
     this.perf = new PerformanceGovernor(this);
     this.timestep = new FixedTimestep({ hz: 60, maxSubSteps: 5 });
     this.frameStats = new FrameStats();
@@ -146,7 +148,9 @@ export class Game {
     this.gearDrops = [];      // world pickups: briefcases with wearables/throwables/consumables
     this.budget = 0;          // DEPARTMENT BUDGET — shared team currency for doors & floor systems
     this.floorBuff = null;    // active floor-breaker effect
-    this.lockdown = null;     // wave-arena lockdown state {wave, pending, t}
+    this.lockdown = null;     // core-holdout wave state {wave, waves, t}
+    this.miniBoss = null;     // biome floor lead, gates the elevator call
+    this.miniBossDone = false;
     this.currentRoom = null;
     this.activeBoss = null;
     this.eventState = 'idle';   // idle | charging | boss | open
@@ -381,6 +385,7 @@ export class Game {
     this.bvh.dispose();
     this.nav.dispose();
     this.decals.clear();
+    this.vfx.clear();
     this.instancing.clear();
     this.pools.releaseAll();   // hand objects back, keep the buffers
     this.timestep.reset();
@@ -459,7 +464,8 @@ export class Game {
     this.floorEvent = null;
     this.floorBuff = null;
     this.lockdown = null;
-    this.lockdownDone = false;
+    this.miniBoss = null;
+    this.miniBossDone = false;
     this.currentRoom = null;
     if (this.player) this.player.hydratedThisFloor = false;
     this.level = new Level(this, this.floorDef, seed);
@@ -468,20 +474,28 @@ export class Game {
     this.scene.background = new THREE.Color(this.floorDef.palette.fog);
     this.buildFloorAcceleration();
 
-    // spawn players at the arrival elevator
-    const sp = this.level.playerSpawn;
-    if (this.player) {
+    // Badge in at your own stairwell. In co-op the roster order is the seat
+    // order, so the four of you land on four different sides of the plate and
+    // have to cut inward to meet at the core.
+    const spawns = this.level.playerSpawns ?? [];
+    const sp = spawns[this.netSeat() % Math.max(1, spawns.length)] ?? spawns[0];
+    if (this.player && sp) {
       // teleport (not a position write) so the motor's interpolation history
       // resets too — otherwise the first frame on a new floor lerps across the
       // whole building
-      this.player.motor.teleport(sp.x + rand(-1.5, 1.5), sp.y, sp.z);
-      this.player.yaw = Math.PI;          // face into the room (toward -z)
+      this.player.motor.teleport(sp.pos.x + rand(-1, 1), sp.pos.y, sp.pos.z + rand(-1, 1));
+      this.player.yaw = sp.yaw;
       this.player.parachuteUsed = false;
+      this.player.stunT = this.player.shockT = 0;
+      this.player.breakTether(true);
       if (this.player.dead) { this.player.dead = false; this.player.hp = this.player.stats.maxHp * 0.5; this.player.mesh.visible = true; }
     }
     this.telemetry.floorEntered(idx, this.floorDef.key, this.runTime);
     this.hud.setFloor(this.floorDef, this.loopCount);
     this.hud.announce(`${this.floorDef.name} — ${this.floorDef.sub}`, 3);
+    if (sp?.label && !this.floorDef.isFinal) {
+      this.delayed(3.2, () => this.hud.announce(`${sp.label} — CUT TO THE CORE`, 2.4, true));
+    }
     this.audio.sfx('ding');
     this.director.resetFloor(idx);
 
@@ -494,6 +508,13 @@ export class Game {
       }
     }
     this.fadeIn();
+  }
+
+  /** Stable 0-based seat from the co-op roster; 0 when playing solo. */
+  netSeat() {
+    if (!this.net?.connected || !this.net.id) return 0;
+    const i = this.net.roster.findIndex((r) => r.id === this.net.id);
+    return i < 0 ? 0 : i;
   }
 
   nextFloor() {
@@ -671,12 +692,18 @@ export class Game {
     this.bvh.flush();
     this.voices.setListener(this.player?.pos ?? this.camera.position);
     this.voices.update(dt);
+    this.vfx.setListener(this.player?.pos ?? this.camera.position);
+    // REAL frame delta, never accumulated sim time — three.quarks clamps to 0.1s
+    // internally and would silently discard the rest.
+    this.vfx.update(dt);
 
     const hpFrac = this.player && !this.player.dead
       ? this.player.hp / Math.max(1, this.player.stats.maxHp)
       : 1;
     this.postfx.update(dt, hpFrac);
+    this.gpuStats?.begin();
     if (!this.postfx.render(dt)) this.renderer.render(this.scene, this.camera);
+    this.gpuStats?.end();
 
     // Closed loop last: it reads this frame's cost and adjusts the next one.
     this.perf.update(dt);
@@ -790,27 +817,30 @@ export class Game {
     // elevator event
     if (isHost) this.updateElevatorEvent(dt);
 
-    // ---- room tracking: discovery + arena lockdown trigger ----
+    // ---- room tracking: discovery announcements + vault payout ----
     if (this.player && !this.player.dead && this.level.rooms?.length) {
       const room = this.level.roomAt(this.player.pos.x, this.player.pos.z);
       if (room && room !== this.currentRoom) {
         this.currentRoom = room;
         if (!room.discovered) {
           room.discovered = true;
-          const names = { entry: 'RECEPTION', corridor: null, bullpen: 'THE OPEN OFFICE', arena: 'CONFERENCE CENTER', elevatorHall: 'ELEVATOR BANK', vault: '💰 THE VAULT', utility: 'FACILITIES', breakroom: 'BREAK ROOM' };
+          const names = {
+            core: '🛗 THE ELEVATOR CORE', corridor: null, bullpen: 'THE OPEN OFFICE',
+            conference: 'CONFERENCE CENTER', lounge: 'STAFF LOUNGE', records: 'RECORDS',
+            vault: '💰 THE VAULT', utility: 'FACILITIES', breakroom: 'BREAK ROOM',
+          };
           if (names[room.type]) this.hud.announce(names[room.type], 1.6, true);
           if (room.type === 'vault') {
             this.audio.sfx('item-rare');
             this.grantReward(this.player, 40 * this.director.moneyMult(), 10, this.player.pos);
             this.addBudget(20);
           }
-          if (isHost && room.type === 'arena' && !this.lockdownDone && this.eventState === 'idle') {
-            this.startLockdown();
+          if (room.type === 'core' && this.eventState === 'idle') {
+            this.hud.toast('🛗 the only way up — call it when the team is ready', 'item');
           }
         }
       }
     }
-    if (isHost) this.updateLockdown(dt);
 
     // camera & music & fov
     this.player?.updateCamera(dt);
@@ -966,6 +996,12 @@ export class Game {
   projectileHitPlayer(p, t) {
     if (t instanceof RemotePlayer) return; // their own client resolves damage (host relays via enemy AI only)
     t.damage(p.damage, p.pos, { from: p.owner?.key ?? p.kind ?? null });
+    const s = p.status;
+    if (s) {
+      if (s.slow) t.slowT = Math.max(t.slowT ?? 0, s.slow);
+      if (s.stun) t.applyStun?.(s.stun, p.pos);
+      if (s.shock) t.applyShock?.(s.shock);
+    }
   }
 
   damageEnemy(e, amount, opts = {}) {
@@ -982,6 +1018,7 @@ export class Game {
       return;
     }
     if (e.auditT > 0) amount *= 1.3;
+    if (e.chillVuln > 0) amount *= 1.2;   // DEEP FREEZE: frozen staff bruise easier
     // COMPOUND INTEREST: accountant ramps damage on a focused target
     if (owner === this.player && owner.upgrades?.get('compound') && !opts.dot) {
       if (owner._cmpId === e.id) owner._cmpStacks = Math.min(10, (owner._cmpStacks ?? 0) + 1);
@@ -1056,6 +1093,8 @@ export class Game {
     this.decals.spawn('blood', _v1.set(e.pos.x, 0.01, e.pos.z), _up, {
       size: e.def.big ? 1.4 : null,
     });
+    // the office's signature death particle: paper, not blood
+    this.vfx.spawn('paperBurst', e.center, null, { scale: e.def.big ? 1.8 : 1 });
     this.effects.burst(e.center.clone(), { color: e.elite ? 0xffb36b : 0xd8dde6, n: e.def.big ? 26 : 12, speed: e.def.big ? 8 : 5, ttl: 0.7 });
     if (this.floorDef.key === 'marketing') this.effects.confetti(e.center.clone(), 8);
 
@@ -1159,6 +1198,8 @@ export class Game {
     this.shake(Math.min(0.7, radius / 8));
     this.level.kickDebris(pos, radius + 1.5, 8);
     this.physics.kick(pos, radius + 2.5, 9);   // blow the Lego gibs around too
+    this.vfx.spawn('printerExplosion', pos, null, { scale: Math.min(2, radius / 4) });
+    if (radius > 4) this.vfx.spawn('tonerCloud', pos, null, { scale: 1.2 });
     if (friendly) {
       for (const e of this.enemies) {
         if (e.dead || e.id === noSelfHit) continue;
@@ -1254,8 +1295,9 @@ export class Game {
   }
 
   addHazard(h) {
+    const tint = h.kind === 'coffee' ? 0x6b4423 : h.kind === 'emp' ? 0x38e1ff : 0x86d86b;
     const mesh = new THREE.Mesh(new THREE.CircleGeometry(h.radius, 20),
-      new THREE.MeshBasicMaterial({ color: h.kind === 'coffee' ? 0x6b4423 : 0x86d86b, transparent: true, opacity: 0.5, depthWrite: false }));
+      new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.5, depthWrite: false }));
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(h.pos.x, 0.05, h.pos.z);
     this.scene.add(mesh);
@@ -1273,8 +1315,10 @@ export class Game {
         h.tick = 0.5;
         const p = this.player;
         if (p && !p.dead && p.pos.y < 0.5 && dist2D(p.pos, h.pos) < h.radius) {
-          p.damage(h.dps * 0.5, null);
+          p.damage(h.dps * 0.5, null, { from: h.kind });
           p.slowT = Math.max(p.slowT, 0.4);
+          if (h.shock) p.applyShock(h.shock);
+          if (h.stun) p.applyStun(h.stun, h.pos);
         }
         if (h.hurtsEnemies) {
           for (const e of this.enemies) {
@@ -1417,6 +1461,7 @@ export class Game {
   }
 
   onBossDefeated(boss) {
+    const bdef = BOSS_DEFS[boss.key];
     this.stats.bossKills++;
     this.hud.hideBoss();
     this.activeBoss = null;
@@ -1425,11 +1470,24 @@ export class Game {
     const isHost = !this.net.connected || this.net.isHost;
     if (isHost) {
       const killer = boss.lastHitBy ?? this.player;
-      this.grantReward(killer, BOSS_DEFS[boss.key].money, BOSS_DEFS[boss.key].xp, boss.center);
-      const item = rollItem(Math.random, 0.35);
+      this.grantReward(killer, bdef.money, bdef.xp, boss.center);
+      const item = rollItem(Math.random, bdef.mini ? 0.15 : 0.35);
       this.grantItem(killer, item);
       if (this.net.connected) this.net.sendEvent({ k: 'bossdead' });
     }
+    // The mini-boss only unblocks the call — the floor is not done with you.
+    if (bdef.mini) {
+      this.miniBoss = null;
+      this.miniBossDone = true;
+      this.hud.announce('FLOOR LEAD — TERMINATED · ELEVATOR RESUMING', 2.6);
+      this.audio.sfx('victory', { vol: 0.5 });
+      this.addBudget(30);
+      return;
+    }
+    // the head is dead: shutters up, doors open
+    this.lockdown = null;
+    this.level.setArenaSealed(false);
+    if (this.net.connected && this.net.isHost) this.net.sendEvent({ k: 'lockdown', on: 0 });
     if (boss.key === 'ceo') {
       this.hud.announce('THE C.E.O. HAS BEEN TERMINATED', 4);
       // victory lap: nothing can kill you between the killshot and the credits
@@ -1453,73 +1511,24 @@ export class Game {
     this.hud.setBudget(this.budget);
   }
 
-  // ================= wave-arena lockdown =================
-  startLockdown() {
-    this.lockdown = { wave: 0, waves: 3, t: 1.6, betweenT: 0 };
-    this.lockdownDone = true;
-    this.level.setArenaSealed(true);
-    this.hud.announce('🚨 SECURITY LOCKDOWN — CLEAR ALL WAVES', 2.8);
-    this.audio.sfx('alarm');
-    this.audio.setMood('boss');
-    this.director.setEventMode(false);
-    this.director.setPacing('RELAX', 999); // lockdown owns the spawns
-    if (this.net.connected && this.net.isHost) this.net.sendEvent({ k: 'lockdown', on: 1 });
-  }
-
-  updateLockdown(dt) {
-    const L = this.lockdown;
-    if (!L) return;
-    L.t -= dt;
-    // only enemies INSIDE the sealed arena block the clear — outside stragglers can't stall it
-    const aliveHorde = this.enemies.filter((e) =>
-      !e.dead && !e.def.boss && this.level.roomAt(e.pos.x, e.pos.z) === this.level.arenaRoom).length;
-    if (L.t <= 0 && L.wave < L.waves) {
-      L.wave++;
-      const size = Math.round((5 + this.director.coeff * 3) * (1 + L.wave * 0.35));
-      this.hud.announce(`WAVE ${L.wave} / ${L.waves}`, 1.6, true);
-      this.audio.sfx('horde', { vol: 0.7 });
-      this.director.queueHorde(size);
-      // specials join later waves
-      if (L.wave >= 2) {
-        const sp = this.level.findSpawnPoint(this.player.pos, 7, 22, null, this.level.arenaRoom);
-        this.spawnEnemy(choose(['gossip', 'complainer', 'micromanager', 'motivator']), sp, {});
-      }
-      if (L.wave === L.waves && this.director.coeff > 2.2) {
-        const sp = this.level.findSpawnPoint(this.player.pos, 8, 24, null, this.level.arenaRoom);
-        this.spawnEnemy('copier', sp, { elite: chance(0.5) ? 'overtime' : 'synergy' });
-      }
-      L.t = 20; // fallback timer if the wave stalls
-    } else if (L.wave >= L.waves && aliveHorde === 0 && this.director.hordeQueue.length === 0) {
-      // CLEARED
-      this.lockdown = null;
-      this.level.setArenaSealed(false);
-      this.hud.announce('✅ LOCKDOWN CLEARED — BONUS APPROVED', 2.6);
-      this.audio.sfx('victory', { vol: 0.6 });
-      this.audio.setMood('chill');
-      this.addBudget(40);
-      this.grantReward(this.player, 60 * this.director.moneyMult(), 25, this.player.pos);
-      const room = this.level.arenaRoom;
-      if (room) this.level.spawnChestIn(room, chance(0.4));
-      this.director.setPacing('RELAX', 14); // protected rest valley
-      this.director.intensity = 20;
-      if (this.net.connected && this.net.isHost) this.net.sendEvent({ k: 'lockdown', on: 0 });
-    } else if (L.wave >= L.waves && aliveHorde > 0) {
-      // panic rule: last stragglers speed up so waves end with a crescendo, not a mop
-      if (aliveHorde <= 4) {
-        for (const e of this.enemies) if (!e.dead && !e.def.boss) e.rallyT = Math.max(e.rallyT ?? 0, 0.4);
-      }
-    }
-  }
-
-  // ================= elevator crescendo =================
+  // ================= the core crescendo =================
+  // Calling the elevator is the whole back half of a floor: the shutters slam
+  // down on all four core mouths, the department pours in in scripted waves,
+  // the biome's mini-boss shows up halfway and gates the last of the progress
+  // bar, and only then does the Department Head ride down to meet you.
   startElevatorEvent() {
     if (this.eventState !== 'idle') return;
     this.eventState = 'charging';
     this.eventProgress = 0;
+    this.lockdown = { wave: 0, waves: 3, t: 2.2 };
+    this.miniBoss = null;
+    this.miniBossDone = false;
     this.director.setEventMode(true);
-    this.hud.showEvent('CALLING THE ELEVATOR — HOLD THE ZONE');
+    this.level.setArenaSealed(true);
+    this.hud.showEvent('CALLING THE ELEVATOR — HOLD THE CORE');
     this.audio.sfx('alarm');
-    this.hud.announce('☎ THE ELEVATOR IS COMING — SO IS EVERYONE ELSE', 3);
+    this.audio.setMood('boss');
+    this.hud.announce('🚨 CORE LOCKDOWN — THE ELEVATOR IS COMING', 3);
     // zone marker
     const zone = new THREE.Mesh(new THREE.RingGeometry(TUNE.eventZoneRadius - 0.35, TUNE.eventZoneRadius, 48),
       new THREE.MeshBasicMaterial({ color: 0x38e1ff, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }));
@@ -1527,26 +1536,84 @@ export class Game {
     zone.position.set(this.level.elevator.pos.x, 0.06, this.level.elevator.pos.z);
     this.scene.add(zone);
     this.eventZoneMesh = zone;
-    if (this.net.connected && this.net.isHost) this.net.sendEvent({ k: 'evstart' });
+    if (this.net.connected && this.net.isHost) {
+      this.net.sendEvent({ k: 'evstart' });
+      this.net.sendEvent({ k: 'lockdown', on: 1 });
+    }
+  }
+
+  /** Scripted horde waves that run underneath the hold. */
+  updateCoreWaves(dt) {
+    const L = this.lockdown;
+    if (!L) return;
+    L.t -= dt;
+    const room = this.level.arenaRoom;
+    const inside = this.enemies.filter((e) =>
+      !e.dead && !e.def.boss && this.level.roomAt(e.pos.x, e.pos.z) === room).length;
+    if (L.t <= 0 && L.wave < L.waves) {
+      L.wave++;
+      const size = Math.round((5 + this.director.coeff * 3) * (1 + L.wave * 0.3));
+      this.hud.announce(`WAVE ${L.wave} / ${L.waves}`, 1.6, true);
+      this.audio.sfx('horde', { vol: 0.7 });
+      this.director.queueHorde(size);
+      if (L.wave >= 2) {
+        const sp = this.level.findSpawnPoint(this.player.pos, 7, 22, null, room);
+        this.spawnEnemy(choose(this.floorDef.specials ?? ['gossip', 'complainer', 'micromanager', 'motivator']), sp, {});
+      }
+      L.t = 16;
+    } else if (L.wave >= L.waves && inside <= 4 && inside > 0) {
+      // panic rule: last stragglers sprint so waves end on a crescendo, not a mop
+      for (const e of this.enemies) if (!e.dead && !e.def.boss) e.rallyT = Math.max(e.rallyT ?? 0, 0.4);
+    }
+  }
+
+  spawnMiniBoss() {
+    const key = this.floorDef.miniBossKey;
+    if (!key || !BOSS_DEFS[key]) { this.miniBossDone = true; return; }
+    const def = BOSS_DEFS[key];
+    const sp = this.level.findSpawnPoint(this.player.pos, 9, 18, null, this.level.arenaRoom);
+    const mb = this.spawnEnemy(key, sp, {});
+    if (!mb) { this.miniBossDone = true; return; }
+    this.miniBoss = mb;
+    this.activeBoss = mb;
+    this.hud.showBoss(def.name, def.title);
+    this.hud.announce(`${def.name} — ${def.title}`, 3);
+    this.audio.sfx('roar', { vol: 0.8 });
+    this.shake(0.5);
+    if (this.net.connected && this.net.isHost) this.net.sendEvent({ k: 'boss', key });
   }
 
   updateElevatorEvent(dt) {
     if (this.eventState !== 'charging') return;
+    this.updateCoreWaves(dt);
     const zonePos = this.level.elevator.pos;
     let inZone = false;
     for (const p of this.livePlayers()) {
       if (dist2D(p.pos, zonePos) < TUNE.eventZoneRadius) { inZone = true; break; }
     }
+    // The mini-boss is a hard gate, not a distraction: the call cannot finish
+    // past 90% while it is alive, so it has to be killed rather than outlasted.
+    if (this.miniBoss?.dead) { this.miniBoss = null; this.miniBossDone = true; }
+    const gated = this.miniBoss && !this.miniBoss.dead;
+    const cap = gated ? 0.9 : 1;
     if (inZone) {
-      this.eventProgress += dt / TUNE.eventDuration;
-      this.eventZoneMesh.material.color.setHex(0x38e1ff);
+      this.eventProgress = Math.min(cap, this.eventProgress + dt / TUNE.eventDuration);
+      this.eventZoneMesh.material.color.setHex(gated ? 0xffb347 : 0x38e1ff);
     } else {
       this.eventZoneMesh.material.color.setHex(0xff4d5a);
     }
     this.eventZoneMesh.material.opacity = 0.35 + Math.sin(this.runTime * 4) * 0.15;
-    this.hud.updateEvent(this.eventProgress, inZone ? 'CALLING THE ELEVATOR — HOLD THE ZONE' : '⚠ RETURN TO THE ZONE — SIGNAL LOST');
+    const label = !inZone ? '⚠ RETURN TO THE CORE — SIGNAL LOST'
+      : gated ? '⛔ ELEVATOR OVERRIDDEN — KILL THE FLOOR LEAD'
+        : 'CALLING THE ELEVATOR — HOLD THE CORE';
+    this.hud.updateEvent(this.eventProgress, label);
+
+    if (!this.miniBossDone && !this.miniBoss && this.eventProgress >= 0.45) {
+      this.spawnMiniBoss();
+    }
     if (this.eventProgress >= 1) {
       this.eventState = 'boss';
+      this.lockdown = null;
       this.hud.hideEvent();
       this.director.setEventMode(false);
       this.audio.sfx('ding');
@@ -1996,7 +2063,7 @@ export class Game {
       case 'evboss': this.eventState = 'boss'; this.hud.hideEvent(); break;
       case 'chestopen': { const ch = this.level?.chests.find((c) => c.id === e.id); if (ch) ch.opened = true; break; }
       case 'floorev': this.startFloorEvent(e.kind); break;
-      case 'lockdown': this.level?.setArenaSealed(!!e.on); if (e.on) { this.hud.announce('🚨 SECURITY LOCKDOWN', 2.4); this.audio.sfx('alarm'); } break;
+      case 'lockdown': this.level?.setArenaSealed(!!e.on); if (e.on) { this.hud.announce('🚨 CORE LOCKDOWN', 2.4); this.audio.sfx('alarm'); } break;
       case 'door': { const dr = this.level?.paidDoors.find((d) => d.id === e.id); if (dr && !dr.open) this.level.openPaidDoor(dr); break; }
       case 'win': this.delayed(1.5, () => this.endRun(true)); break;
     }

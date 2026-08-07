@@ -10,8 +10,16 @@
 
 import { createTransport } from './transport.js';
 
+// Wire table for enemy kinds: the INDEX is the value on the wire, so new kinds
+// must be APPENDED and existing entries must never be reordered or removed.
+// An unknown index is dropped by applyEnemySnapshot rather than mis-spawned.
 const ENEMY_KEYS = ['paperling', 'drone', 'printer', 'roomba', 'quad', 'copier',
-  'gossip', 'complainer', 'micromanager', 'karen', 'auditor', 'cfo', 'cmo', 'vp', 'ceo', 'motivator', 'security'];
+  'gossip', 'complainer', 'micromanager', 'karen', 'auditor', 'cfo', 'cmo', 'vp', 'ceo', 'motivator', 'security',
+  // department staff
+  'hrrep', 'intake', 'mediator', 'itguy', 'pylon', 'sysadmin',
+  'influencer', 'growth', 'streamer', 'closer',
+  // department heads + floor leads
+  'chro', 'cto', 'concierge', 'notary', 'devops', 'controller', 'evangelist', 'accountexec'];
 const ELITE_KEYS = [null, 'overtime', 'synergy'];
 
 export class NetSession {

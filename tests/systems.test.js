@@ -179,6 +179,10 @@ describe('EnemyLOD', () => {
     const far = mob(120);
     const lod = new EnemyLOD(fakeGame([far]));
     lod.register(far);
+    // register() randomises lodPhase to de-sync the herd, which makes the tier-3
+    // interval land anywhere in 0.85..1.15s. Pin it so this test measures the
+    // time-conservation invariant instead of the dice.
+    far.lodPhase = 0.5;
     lod._classify(far, 0, 0);
     let calls = 0, totalDt = 0, maxStep = 0;
     for (let i = 0; i < 120; i++) {
@@ -191,7 +195,10 @@ describe('EnemyLOD', () => {
     // The invariant that matters: every second of elapsed time is either
     // already simulated or still banked — none of it is silently discarded.
     expect(totalDt + far.lodAccum).toBeCloseTo(2, 4);
-    expect(totalDt).toBeGreaterThan(1.5);
+    // With the phase pinned the interval is exactly 1s, so both seconds are
+    // simulated and nothing is left banked.
+    expect(totalDt).toBeCloseTo(2, 4);
+    expect(far.lodAccum).toBeLessThan(1e-4);
   });
 
   it('never lets a boss or a winding-up attacker run cold', () => {

@@ -86,6 +86,7 @@ export class Projectiles {
       returning: false,
       fromRicochet: opts.fromRicochet ?? false,
       slowSplat: opts.slowSplat ?? null,  // tape ball: slow zone on impact
+      status: opts.status ?? null,        // {slow,stun,shock,chill} applied on hit
       hitSet: new Set(),
       mesh: new THREE.Mesh(geo(opts.kind ?? 'paper'), pmat(opts.kind ?? 'paper')),
     };
@@ -255,6 +256,11 @@ export class Projectiles {
         ? _decalUp
         : (game.bvh?.raycast(this._prev, _decalDir.copy(p.pos).sub(this._prev).normalize(), 4)?.normal ?? _decalUp);
       game.decals.spawn(kind, p.pos, normal);
+      // Sparks spray back along the surface normal. The AoE case already got its
+      // explosion effect inside game.explode(), so don't double up.
+      if (p.aoe <= 0) {
+        game.vfx?.spawn(p.kind === 'coffee' ? 'coffeeSplash' : 'bulletImpactMetal', p.pos, normal);
+      }
     }
     this.remove(p);
   }

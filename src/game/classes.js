@@ -210,6 +210,187 @@ export const CLASSES = [
       },
     },
   },
+  {
+    key: 'marketing', icon: '🧯', name: 'THE MARKETING MANAGER', title: 'Never Left The Chair',
+    desc: 'Has not stood up since the rebrand. Rides a task chair at terrifying speed and puts out fires — and people — with a CO₂ extinguisher.',
+    hp: 96, speed: 8.6, damage: 8,
+    weapon: 'extinguisher',
+    mount: 'chair',
+    passive: 'Ergonomic Momentum — you roll instead of walk: top speed is high and turns drift, but you cannot slide.',
+    look: {
+      shirt: 0xff4fa3, pants: 0x2b2038, tie: null, accessories: ['sunglasses', 'ponytail', 'lanyard'],
+      hair: 0xe0559a, build: 'petite', chairColor: 0xff4fa3,
+    },
+    primary: {
+      name: 'Discharge', icon: '🧯', desc: 'HOLD: a CO₂ cone. Chews through crowds and CHILLS what it touches (slow + no rally).', cd: 0.055,
+      fire(game, player, aim) {
+        // a cone of short-lived cosmetic puffs, resolved as an arc query rather
+        // than as projectiles — a held cone at 18 Hz would flood the sim
+        const crit = rollCrit(player);
+        const hits = game.combat.meleeArc({
+          origin: player.pos,
+          direction: _v.set(Math.sin(player.yaw), 0, Math.cos(player.yaw)),
+          radius: 7.5, angle: 42, maxTargets: 10,
+        });
+        const deep = player.upgrades.get('deepfreeze');
+        for (const e of hits) {
+          game.damageEnemy(e, dmgOf(player, 1, crit), { crit, owner: player });
+          e.applyKnockback(player.pos, 1.6);
+          // CHILL: the extinguisher's real job is crowd shaping
+          e.slowFactor = Math.min(e.slowFactor ?? 1, 0.45);
+          e.chillT = Math.max(e.chillT ?? 0, deep ? 2.4 : 1.2);
+          if (deep) e.chillVuln = Math.max(e.chillVuln ?? 0, 2.4);
+          e.rallyT = 0;
+        }
+        const muzzle = player.muzzleWorldFx();
+        const fwd = _v.set(Math.sin(player.yaw), 0, Math.cos(player.yaw));
+        game.effects.burst(muzzle.clone().addScaledVector(fwd, 0.8), {
+          color: 0xdff2ff, n: 3, speed: 9, size: 0.16, ttl: 0.28, gravity: -1.5, up: 0.4,
+        });
+        game.audio.sfx('spit', { vol: 0.28 });
+        return true;
+      },
+    },
+    secondary: {
+      name: 'Full Send', icon: '💨', desc: 'Point the extinguisher backwards and ride the thrust: a long boost that runs enemies down.', cd: 7,
+      use(game, player) {
+        const fwd = _v.set(Math.sin(player.yaw), 0, Math.cos(player.yaw));
+        player.vel.x = fwd.x * 26;
+        player.vel.z = fwd.z * 26;
+        player.momentumT = Math.max(player.momentumT, 0.9);
+        player.iframes = Math.max(player.iframes, 0.25);
+        player.boostT = 0.9;
+        game.effects.ring(player.pos, { color: 0xdff2ff, r1: 2.6, dur: 0.35, opacity: 0.6 });
+        game.effects.burst(player.pos.clone().setY(0.5), { color: 0xdff2ff, n: 16, speed: 7, ttl: 0.5, gravity: -1 });
+        game.audio.sfx('dash', { vol: 1.1 });
+        game.shake(0.25);
+        // anything you plough through gets launched
+        const trail = player.upgrades.get('crashcart');
+        const refund = player.upgrades.get('flooritsafloor');
+        const ram = { hit: new Set(), t: 0.9, puff: 0 };
+        game.tickers.push({ update: (dt) => {
+          ram.t -= dt;
+          if (trail) {
+            ram.puff -= dt;
+            if (ram.puff <= 0) {
+              ram.puff = 0.12;
+              game.addSlowZone({
+                pos: player.pos.clone().setY(0), radius: 2.4, ttl: 2.2,
+                factor: 0.45, color: 0xdff2ff, quiet: true,
+              });
+            }
+          }
+          for (const e of game.enemies) {
+            if (e.dead || ram.hit.has(e.id)) continue;
+            if (e.pos.distanceTo(player.pos) < 1.9 + e.radius) {
+              ram.hit.add(e.id);
+              const crit = rollCrit(player);
+              game.damageEnemy(e, dmgOf(player, 2.4, crit), { crit, owner: player });
+              e.applyKnockback(player.pos, 18);
+              if (refund) player.secondaryCd = Math.max(0, player.secondaryCd - 2.5);
+            }
+          }
+          return ram.t > 0 && !player.dead;
+        } });
+        return true;
+      },
+    },
+  },
+  {
+    key: 'brawler', icon: '🥊', name: 'THE FACILITIES GUY', title: 'Built Like A Vending Machine',
+    desc: 'Six foot six of loading-dock muscle in a hi-vis vest. No weapon, no ammo, no reload — just hands. Walks through knockback and hits like a forklift.',
+    hp: 235, speed: 6.2, damage: 26,
+    weapon: null, gloves: true,
+    knockbackResist: 0.65,
+    passive: 'Load-Bearing — 65% knockback resistance, and every third punch is a HAYMAKER that launches whatever it touches.',
+    look: {
+      shirt: 0x2f3540, pants: 0x22262c, tie: null, accessories: ['hardhat'],
+      hair: 0x1a1a1a, build: 'bulky', skin: 0xC68863,
+    },
+    primary: {
+      name: 'Combo', icon: '🥊', desc: 'Alternating jabs. Every third lands a HAYMAKER — bigger arc, huge knockback, small shockwave.', cd: 0.34,
+      fire(game, player) {
+        player.punchCount = (player.punchCount || 0) + 1;
+        const every = player.upgrades.get('southpaw') ? 2 : 3;
+        const haymaker = player.punchCount % every === 0;
+        player.swingSide *= -1;
+        player.attackAnimT = 0.26;
+        game.audio.sfx('swing', { vol: haymaker ? 1.2 : 0.7 });
+        game.effects.slash(player.pos, player.yaw, haymaker ? 3.6 : 2.6, player.swingSide, haymaker ? 0xffb36b : 0xf2f6ff);
+        const hits = player.coneHit({ range: haymaker ? 3.6 : 2.6, arcDeg: haymaker ? 130 : 85 });
+        for (const e of hits) {
+          const crit = rollCrit(player);
+          game.damageEnemy(e, dmgOf(player, haymaker ? 2.6 : 1, crit), { crit, owner: player, melee: true });
+          e.applyKnockback(player.pos, haymaker ? 22 : 6);
+          if (haymaker) e.applyStun?.(0.4);
+        }
+        if (hits.length) game.audio.sfx('melee-hit', { vol: haymaker ? 1.3 : 0.8 });
+        if (haymaker) {
+          game.shake(0.3);
+          const spot = player.pos.clone().addScaledVector(_v.set(Math.sin(player.yaw), 0, Math.cos(player.yaw)), 2.2);
+          game.effects.ring(spot, { color: 0xffb36b, r1: 2.6, dur: 0.3 });
+          game.level.kickDebris(spot, 3, 8);
+          // IRON JAW: connecting buys you a moment of armour
+          if (hits.length && player.upgrades.get('ironjaw')) player.shieldT = 3;
+        }
+        return true;
+      },
+    },
+    secondary: {
+      name: 'Body Check', icon: '🪨', desc: 'Shoulder-charge forward. Unstoppable through crowds, ends in a ground slam.', cd: 9,
+      use(game, player) {
+        const fwd = _v.set(Math.sin(player.yaw), 0, Math.cos(player.yaw)).clone();
+        const wrecking = player.upgrades.get('wrecking');
+        const dur = wrecking ? 1.0 : 0.65;
+        player.iframes = Math.max(player.iframes, dur + 0.05);
+        player.chargeT = dur;
+        game.audio.sfx('roar', { vol: 0.7 });
+        const st = { t: dur, hit: new Set() };
+        game.tickers.push({ update: (dt) => {
+          st.t -= dt;
+          player.vel.x = fwd.x * 22;
+          player.vel.z = fwd.z * 22;
+          for (const e of game.enemies) {
+            if (e.dead || st.hit.has(e.id)) continue;
+            if (e.pos.distanceTo(player.pos) < 2.0 + e.radius) {
+              st.hit.add(e.id);
+              const crit = rollCrit(player);
+              game.damageEnemy(e, dmgOf(player, 2.0, crit), { crit, owner: player, melee: true });
+              e.applyKnockback(player.pos, 20);
+            }
+          }
+          // WRECKING BALL: the furniture is not a suggestion
+          if (wrecking) {
+            for (const d of game.level.destructibles) {
+              if (d.dead || dist(d.pos, player.pos) > 2.4) continue;
+              game.damageDestructible(d, player.stats.damage * 4);
+            }
+          }
+          if (st.t <= 0 || player.dead) {
+            if (!player.dead) {
+              const spot = player.pos.clone().setY(0);
+              game.audio.sfx('explosion', { vol: 0.7 });
+              game.shake(0.55);
+              game.effects.ring(spot, { color: 0xffb36b, r1: 5, dur: 0.4 });
+              game.level.kickDebris(spot, 6, 11);
+              for (const e of game.enemies) {
+                if (e.dead || dist(e.pos, spot) > 5) continue;
+                const crit = rollCrit(player);
+                game.damageEnemy(e, dmgOf(player, 1.6, crit), { crit, owner: player });
+                e.applyKnockback(spot, 14);
+                e.applyStun?.(0.5);
+              }
+            }
+            return false;
+          }
+          return true;
+        } });
+        return true;
+      },
+    },
+  },
 ];
+
+function dist(a, b) { return Math.hypot(a.x - b.x, a.z - b.z); }
 
 export const CLASS_BY_KEY = Object.fromEntries(CLASSES.map((c) => [c.key, c]));

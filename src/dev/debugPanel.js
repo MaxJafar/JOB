@@ -42,7 +42,7 @@ export class DebugPanel {
       postfx: 'off',
       fixedStep: true,
       simHz: 60,
-      showNav: false, showColliders: false, showBvh: false,
+      showNav: false, showColliders: false, showBvh: false, gpuStats: false,
       voicesPlayed: 0, voicesDropped: 0,
       budget: 0,
     };
@@ -201,6 +201,17 @@ export class DebugPanel {
       if (g.nav && g.level) console.info('[nav] rebuild →', g.nav.build(g.level), g.nav.stats);
     });
     eng.addButton({ title: 'Clear gibs' }).on('click', () => g.physics?.clearGibs());
+    eng.addBinding(s, 'gpuStats', { label: 'GPU timer overlay' }).on('change', async (e) => {
+      // real GPU timer queries — resolves a slow frame into CPU vs GPU, which is
+      // the difference between "too many enemies" and "post-FX is too expensive"
+      if (!this._gpu) {
+        const { GpuStats } = await import('./gpuStats.js');
+        this._gpu = new GpuStats();
+        await this._gpu.attach(g.renderer);
+        g.gpuStats = this._gpu;
+      }
+      this._gpu.setVisible(e.value);
+    });
 
     // ---- tuning (hot values, no rebuild) ----
     const tune = pane.addFolder({ title: '🎚️ Tuning (live)', expanded: false });

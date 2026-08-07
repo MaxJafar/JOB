@@ -302,6 +302,75 @@ export function makeElevator(palette) {
   return g;
 }
 
+/**
+ * The tower's spine: a free-standing elevator core that sits in the middle of
+ * the floor plate rather than in a wall. Doors face +z. Returns the same
+ * userData shape as makeElevator so the door-slide code is shared.
+ */
+export function makeElevatorCore(palette) {
+  const g = new THREE.Group();
+  const W = 5.0, H = 4.3, D = 4.4;
+  // shaft shell — four faces, the +z one carrying the doors
+  const shell = box(W, H, D, palette.trim, { rough: 0.7 });
+  shell.position.y = H / 2;
+  const face = box(W + 0.3, H, 0.25, palette.wall, { rough: 0.55 });
+  face.position.set(0, H / 2, D / 2 + 0.1);
+  // door pocket
+  const jamb = box(W - 0.4, H - 0.9, 0.14, 0x14171d);
+  jamb.position.set(0, (H - 0.9) / 2, D / 2 + 0.23);
+  const doorL = box((W - 0.5) / 2 - 0.02, H - 1.0, 0.14, 0x9aa3b0, { metal: 0.6, rough: 0.3 });
+  doorL.position.set(-(W - 0.5) / 4, (H - 1.0) / 2, D / 2 + 0.3);
+  const doorR = doorL.clone(); doorR.position.x = (W - 0.5) / 4;
+  // floor indicator + call plate
+  const indTex = makeCanvasTexture(192, 64, (gc) => {
+    gc.fillStyle = '#0b0e13'; gc.fillRect(0, 0, 192, 64);
+    gc.fillStyle = '#ffb347'; gc.font = '900 34px Arial'; gc.textAlign = 'center'; gc.textBaseline = 'middle';
+    gc.fillText('▲  UP  ▲', 96, 34);
+  });
+  const ind = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.56),
+    new THREE.MeshStandardMaterial({ map: indTex, emissive: 0xffffff, emissiveMap: indTex, emissiveIntensity: 1.1, color: 0x555555 }));
+  ind.position.set(0, H - 0.55, D / 2 + 0.32);
+  const plate = box(0.3, 0.5, 0.08, 0xd9dde3, { rough: 0.4 });
+  plate.position.set(W / 2 - 0.2, 1.25, D / 2 + 0.3);
+  const callBtn = cyl(0.07, 0.07, 0.04, 0x58e07c, 8, { emissive: 0x2ea656, emissiveIntensity: 1.6 });
+  callBtn.rotation.x = Math.PI / 2;
+  callBtn.position.set(W / 2 - 0.2, 1.32, D / 2 + 0.35);
+  // trim band that ties it to the floor palette
+  const band = box(W + 0.4, 0.16, D + 0.4, palette.accent, { emissive: palette.accent, emissiveIntensity: 0.9 });
+  band.position.y = 2.85;
+  const skirt = box(W + 0.4, 0.3, D + 0.4, 0x1a1e26);
+  skirt.position.y = 0.15;
+  g.add(shell, face, jamb, doorL, doorR, ind, plate, callBtn, band, skirt);
+  g.userData = { doorL, doorR, W: W - 0.5, H, D, shaftW: W, shaftD: D, callBtn };
+  return g;
+}
+
+/**
+ * A fire-stairs door. Purely dressing plus a spawn marker: the stairwell is how
+ * the team gets onto a floor, and the elevator core is the only way off it.
+ */
+export function makeStairwellDoor(palette, label = 'STAIRWELL') {
+  const g = new THREE.Group();
+  const frame = box(3.4, 3.0, 0.3, palette.trim, { rough: 0.6 });
+  frame.position.y = 1.5;
+  const doorL = box(1.42, 2.7, 0.14, 0x4d5a68, { metal: 0.35, rough: 0.55 });
+  doorL.position.set(-0.75, 1.35, 0.2);
+  const doorR = doorL.clone(); doorR.position.x = 0.75;
+  for (const s of [-1, 1]) {
+    const bar = box(1.1, 0.1, 0.12, 0xd9dde3, { metal: 0.5, rough: 0.4 });
+    bar.position.set(s * 0.75, 1.15, 0.3);
+    g.add(bar);
+  }
+  const sign = makePoster(label, '#58e07c', '#0d1118');
+  sign.scale.setScalar(0.5);
+  sign.position.set(0, 3.15, 0.2);
+  const exitLamp = box(0.9, 0.28, 0.08, 0x1a1e26, { emissive: 0x2ea656, emissiveIntensity: 1.6 });
+  exitLamp.position.set(0, 3.15, 0.28);
+  g.add(frame, doorL, doorR, sign, exitLamp);
+  g.userData.sign = sign;
+  return g;
+}
+
 export function makeCEODesk(palette) {
   const g = new THREE.Group();
   const top = box(4.4, 0.14, 1.7, 0x2c1f12, { rough: 0.5 }); top.position.y = 0.95;

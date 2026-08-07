@@ -45,6 +45,16 @@ export const CLASS_EVOLUTIONS = {
     { id: 'networking', icon: '🤝', name: 'NETWORKING', desc: 'Cold Call hits reset your dash.', max: 1, w: 6 },
     { id: 'commission', icon: '💰', name: 'COMMISSION', desc: 'Kills pay +$1 per current combo count.', max: 1, w: 5 },
   ],
+  marketing: [
+    { id: 'deepfreeze', icon: '🧊', name: 'DEEP FREEZE', desc: 'Chill lasts twice as long and stacks a damage-taken debuff.', max: 1, w: 6 },
+    { id: 'crashcart', icon: '🛒', name: 'CRASH CART', desc: 'Full Send leaves a trail of CO₂ that chills everything behind you.', max: 1, w: 6 },
+    { id: 'flooritsafloor', icon: '🏁', name: 'FLOOR IT', desc: 'Full Send has 2 charges and refunds 40% of its cooldown on a kill.', max: 1, w: 5 },
+  ],
+  brawler: [
+    { id: 'southpaw', icon: '🥊', name: 'SOUTHPAW', desc: 'Every SECOND punch is a haymaker instead of every third.', max: 1, w: 6 },
+    { id: 'ironjaw', icon: '🦾', name: 'IRON JAW', desc: 'Landing a haymaker grants a 25% damage-reduction shield for 3s.', max: 1, w: 6 },
+    { id: 'wrecking', icon: '🏗️', name: 'WRECKING BALL', desc: 'Body Check is longer and detonates furniture it passes through.', max: 1, w: 5 },
+  ],
 };
 
 export const UPGRADE_BY_ID = (() => {

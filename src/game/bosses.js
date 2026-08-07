@@ -8,30 +8,75 @@ import { rand, dist2D, clamp } from '../core/utils.js';
 const _v1 = new THREE.Vector3();
 
 export const BOSS_DEFS = {
+  // ---------- department heads: one per floor, arrives in the elevator ----------
   security: {
     name: 'GUS DUTY', title: 'HEAD OF SECURITY', hp: 1750, dmg: 20, speed: 3.9, radius: 1.0,
     centerY: 1.6, xp: 120, money: 240, scale: 1.7,
-    look: { skin: 0xc9976b, shirt: 0x2e3d59, pants: 0x1e2637, tie: 0x11151d, accessories: ['sunglasses', 'cap'], hair: 0x222222, weapon: 'phone' },
+    look: { skin: 0xc9976b, shirt: 0x2e3d59, pants: 0x1e2637, tie: 0x11151d, accessories: ['sunglasses', 'cap'], hair: 0x222222, weapon: 'phone', build: 'bulky' },
+  },
+  chro: {
+    name: 'PATRICIA VOLKOV', title: 'HEAD OF PEOPLE', hp: 2000, dmg: 21, speed: 2.9, radius: 1.05,
+    centerY: 1.6, xp: 140, money: 280, scale: 1.7,
+    look: { skin: 0xecc3a2, shirt: 0xb7a2c9, pants: 0x4a4457, tie: null, accessories: ['bun', 'glasses', 'lanyard'], hair: 0x8a8f98, weapon: 'clipboard' },
+  },
+  cto: {
+    name: 'RAJ SINGULARITY', title: 'HEAD OF ENGINEERING', hp: 2400, dmg: 23, speed: 3.4, radius: 1.0,
+    centerY: 1.6, xp: 155, money: 300, scale: 1.72,
+    look: { skin: 0xb07a4e, shirt: 0x1f242e, pants: 0x171a21, tie: null, accessories: ['visor', 'beanie'], hair: 0x1a1a1a, weapon: 'teslawand' },
   },
   cfo: {
-    name: 'DEREK KROHN', title: 'HEAD OF FINANCE', hp: 2300, dmg: 24, speed: 3.1, radius: 1.0,
-    centerY: 1.6, xp: 160, money: 320, scale: 1.75,
+    name: 'DEREK KROHN', title: 'HEAD OF FINANCE', hp: 2600, dmg: 24, speed: 3.1, radius: 1.0,
+    centerY: 1.6, xp: 180, money: 340, scale: 1.75,
     look: { skin: 0xd8b28f, shirt: 0x39414f, pants: 0x2a303c, tie: 0xd4aa30, accessories: ['glasses'], hair: 0x555a63, weapon: 'ledger' },
   },
   cmo: {
-    name: 'BRANDI SPARK', title: 'HEAD OF MARKETING', hp: 2700, dmg: 22, speed: 3.6, radius: 1.0,
-    centerY: 1.6, xp: 190, money: 380, scale: 1.75,
+    name: 'BRANDI SPARK', title: 'HEAD OF MARKETING', hp: 2900, dmg: 22, speed: 3.6, radius: 1.0,
+    centerY: 1.6, xp: 200, money: 390, scale: 1.75,
     look: { skin: 0xe8bc9d, shirt: 0xff4fa3, pants: 0x3a2f4d, tie: null, accessories: ['sunglasses', 'bun'], hair: 0xe0559a, weapon: 'megaphone' },
   },
   vp: {
-    name: 'CHAD MAVERICK', title: 'HEAD OF SALES', hp: 3300, dmg: 26, speed: 4.0, radius: 1.0,
-    centerY: 1.6, xp: 230, money: 450, scale: 1.8,
+    name: 'CHAD MAVERICK', title: 'HEAD OF SALES', hp: 3400, dmg: 26, speed: 4.0, radius: 1.0,
+    centerY: 1.6, xp: 240, money: 460, scale: 1.8,
     look: { skin: 0xdba577, shirt: 0x3a5f8a, pants: 0x22334a, tie: 0xff9b2d, accessories: ['headset'], hair: 0x30231a, weapon: 'phone' },
   },
   ceo: {
     name: 'THE C.E.O.', title: 'CHIEF EXECUTIVE OVERLORD', hp: 7000, dmg: 30, speed: 3.0, radius: 1.25,
     centerY: 2.0, xp: 500, money: 1000, scale: 2.3,
     look: { skin: 0xcfae8e, shirt: 0x16161c, pants: 0x101014, tie: 0xffd23f, accessories: ['crown'], hair: 0xd9d9d9, weapon: 'gavel' },
+  },
+
+  // ---------- floor leads: mini-bosses that override the elevator call ----------
+  // Roughly a third of a head's health, two attacks, no phase flip. They exist
+  // to make the holdout a fight with a name on it instead of a timer.
+  concierge: {
+    mini: true, name: 'RANDALL PEET', title: 'FRONT DESK SUPERVISOR', hp: 620, dmg: 16, speed: 4.4,
+    radius: 0.85, centerY: 1.4, xp: 48, money: 90, scale: 1.35,
+    look: { skin: 0xb5804f, shirt: 0x2e3d59, pants: 0x1e2637, tie: 0xc59d45, accessories: ['cap', 'lanyard'], hair: 0x2c2c2c, weapon: 'clipboard' },
+  },
+  notary: {
+    mini: true, name: 'MARGE PENN', title: 'SENIOR NOTARY', hp: 780, dmg: 15, speed: 2.6,
+    radius: 0.95, centerY: 1.4, xp: 54, money: 100, scale: 1.4,
+    look: { skin: 0xe4bb9c, shirt: 0x9fb8c9, pants: 0x4a4457, tie: null, accessories: ['bun', 'glasses'], hair: 0x8a8f98, weapon: 'clipboard' },
+  },
+  devops: {
+    mini: true, name: 'K. BERNETTI', title: 'DEVOPS LEAD', hp: 700, dmg: 15, speed: 4.0,
+    radius: 0.85, centerY: 1.4, xp: 58, money: 105, scale: 1.35,
+    look: { skin: 0xc79a72, shirt: 0x2b3240, pants: 0x1d2129, tie: null, accessories: ['visor', 'headset'], hair: 0x2a1c10, weapon: 'teslawand' },
+  },
+  controller: {
+    mini: true, name: 'IRENE COST', title: 'FINANCIAL CONTROLLER', hp: 860, dmg: 17, speed: 3.0,
+    radius: 0.9, centerY: 1.4, xp: 64, money: 120, scale: 1.4,
+    look: { skin: 0xd8b28f, shirt: 0x4d5a68, pants: 0x2a303c, tie: 0x27ae60, accessories: ['glasses', 'bun'], hair: 0x6b4a2c, weapon: 'ledger' },
+  },
+  evangelist: {
+    mini: true, name: 'TREVOR HYPE', title: 'BRAND EVANGELIST', hp: 820, dmg: 16, speed: 4.6,
+    radius: 0.8, centerY: 1.4, xp: 68, money: 130, scale: 1.32,
+    look: { skin: 0xdba577, shirt: 0xff4fa3, pants: 0x1b1420, tie: null, accessories: ['sunglasses', 'beanie'], hair: 0x35e0c8, weapon: 'selfiestick' },
+  },
+  accountexec: {
+    mini: true, name: 'BIFF RANDALL', title: 'SENIOR ACCOUNT EXEC', hp: 950, dmg: 19, speed: 4.8,
+    radius: 0.85, centerY: 1.4, xp: 76, money: 145, scale: 1.42,
+    look: { skin: 0xd8a166, shirt: 0x2c3f5a, pants: 0x1c2536, tie: 0xff9b2d, accessories: ['sunglasses'], hair: 0x241a12, weapon: 'cards' },
   },
 };
 
@@ -40,6 +85,7 @@ for (const [k, d] of Object.entries(BOSS_DEFS)) {
   ENEMY_DEFS[k] = {
     name: d.name, hp: d.hp, dmg: d.dmg, speed: d.speed, radius: d.radius, centerY: d.centerY,
     xp: d.xp, money: d.money, credit: 0, ai: 'boss', rare: true, big: true, boss: true,
+    mini: !!d.mini,
   };
 }
 
@@ -61,7 +107,7 @@ export class Boss extends Enemy {
     const L = this.bossDef.look;
     const person = makePerson({
       skin: L.skin, shirt: L.shirt, pants: L.pants, tie: L.tie, hair: L.hair,
-      accessories: L.accessories, tieLength: 0.62,
+      accessories: L.accessories, tieLength: 0.62, build: L.build ?? 'normal',
     });
     person.root.scale.setScalar(this.bossDef.scale);
     this.mesh = new THREE.Group();
@@ -199,10 +245,50 @@ export class Boss extends Enemy {
         { id: 'halt', w: 2.6, cd: 7, run: (t) => this.atkColdCall(t) },
         { id: 'slam', w: 1.8, cd: 10, run: (t) => this.atkJumpSlam(t, 4.4, 0xc59d45) },
       ];
+      case 'chro': return [
+        // she does not hit hard, she stops you moving and lets the floor do it
+        { id: 'meeting', w: 3, cd: 5, run: (t) => this.atkStunSlam(t, 5.2) },
+        { id: 'onboard', w: 2.2, cd: 11, run: () => this.atkSummon(['hrrep', 'hrrep', 'intake'], 'ONBOARDING — WELCOME ABOARD') },
+        { id: 'memo', w: 2.6, cd: 5, run: (t) => this.atkLedgerLob(t) },
+        { id: 'policy', w: 1.8, cd: 9, run: () => this.atkShockRing(0xd7a3c8) },
+      ];
+      case 'cto': return [
+        { id: 'emp', w: 3, cd: 6, run: (t) => this.atkEmpBurst(t) },
+        { id: 'sweep', w: 2.4, cd: 12, run: () => this.atkQuarterlyBeam(0x38e1ff, 'ROLLING DEPLOY — JUMP!') },
+        { id: 'oncall', w: 2, cd: 12, run: () => this.atkSummon(['itguy', 'itguy', 'pylon'], 'PAGING THE ON-CALL') },
+        { id: 'surge', w: 2.2, cd: 8, run: () => this.atkShockRing(0x38e1ff) },
+      ];
       case 'cfo': return [
         { id: 'ledger', w: 3, cd: 4, run: (t) => this.atkLedgerLob(t) },
         { id: 'coins', w: 2.4, cd: 7, run: () => this.atkCoinStorm() },
         { id: 'slam', w: 2, cd: 9, run: (t) => this.atkJumpSlam(t, 5, 0xd4aa30) },
+      ];
+
+      // ---- floor leads: two moves each, read-and-react ----
+      case 'concierge': return [
+        { id: 'charge', w: 3, cd: 6, run: (t) => this.atkCharge(t) },
+        { id: 'halt', w: 2.4, cd: 7, run: (t) => this.atkColdCall(t) },
+      ];
+      case 'notary': return [
+        { id: 'sign', w: 3, cd: 5, run: (t) => this.atkStunSlam(t, 4.4) },
+        { id: 'file', w: 2.2, cd: 10, run: () => this.atkSummon(['hrrep', 'hrrep'], 'PLEASE SIGN IN TRIPLICATE') },
+      ];
+      case 'devops': return [
+        { id: 'emp', w: 3, cd: 6, run: (t) => this.atkEmpBurst(t) },
+        { id: 'scale', w: 2.2, cd: 11, run: () => this.atkSummon(['itguy', 'itguy'], 'SCALING HORIZONTALLY') },
+      ];
+      case 'controller': return [
+        { id: 'ledger', w: 3, cd: 4.5, run: (t) => this.atkLedgerLob(t) },
+        { id: 'coins', w: 2.2, cd: 8, run: () => this.atkCoinStorm() },
+      ];
+      case 'evangelist': return [
+        { id: 'blast', w: 3, cd: 4, run: (t) => this.atkBrandBlast(t) },
+        { id: 'blink', w: 2.2, cd: 6, run: (t) => this.atkBlink(t) },
+        { id: 'viral', w: 1.8, cd: 11, run: () => this.atkSummon(['influencer', 'influencer', 'influencer', 'influencer'], 'THIS IS GOING VIRAL') },
+      ];
+      case 'accountexec': return [
+        { id: 'charge', w: 3, cd: 5.5, run: (t) => this.atkCharge(t) },
+        { id: 'pitch', w: 2.4, cd: 7, run: (t) => this.atkColdCall(t) },
       ];
       case 'cmo': return [
         { id: 'blast', w: 3, cd: 4, run: (t) => this.atkBrandBlast(t) },
@@ -400,6 +486,54 @@ export class Boss extends Enemy {
     });
   }
 
+  /**
+   * HR's signature: a telegraphed circle you have to physically leave. Landing
+   * it roots you, which is only lethal because the rest of the floor is still
+   * walking toward you.
+   */
+  atkStunSlam(target, radius) {
+    const game = this.game;
+    this.strikeAnim = 0.7;
+    const spot = target.pos.clone().setY(0);
+    game.effects.telegraph(spot, radius, 1.0, 0xd7a3c8);
+    game.audio.sfx('ui2', { vol: 1.2 });
+    game.delayed(1.0, () => {
+      if (this.dead) return;
+      game.audio.sfx('block', { vol: 1.2 });
+      game.shake(0.5);
+      game.effects.ring(spot, { color: 0xd7a3c8, r1: radius, dur: 0.45 });
+      game.level.kickDebris(spot, radius, 6);
+      for (const p of game.livePlayers()) {
+        if (dist2D(p.pos, spot) < radius && p.pos.y < 1.5) {
+          p.damage(this.dmg * 0.8, spot, { from: this.key });
+          p.applyStun?.(1.1, spot);
+        }
+      }
+    });
+  }
+
+  /** IT's signature: an expanding pulse that takes your toolkit offline. */
+  atkEmpBurst(target) {
+    const game = this.game;
+    this.strikeAnim = 0.6;
+    const spot = target.pos.clone().setY(0);
+    game.effects.telegraph(spot, 5.5, 0.85, 0x38e1ff);
+    game.audio.sfx('zap', { vol: 1.1 });
+    game.delayed(0.85, () => {
+      if (this.dead) return;
+      game.audio.sfx('explosion', { vol: 0.6 });
+      game.shake(0.45);
+      game.effects.ring(spot, { color: 0x38e1ff, r1: 5.5, dur: 0.45 });
+      for (const p of game.livePlayers()) {
+        if (dist2D(p.pos, spot) < 5.5) {
+          p.damage(this.dmg * 0.7, spot, { from: this.key });
+          p.applyShock?.(2.4);
+        }
+      }
+      game.addHazard({ pos: spot, radius: 4.4, ttl: 5, dps: this.dmg * 0.5, kind: 'emp', shock: 0.8 });
+    });
+  }
+
   atkSynergyOrbs(target) {
     const game = this.game;
     this.strikeAnim = 0.6;
@@ -417,16 +551,16 @@ export class Boss extends Enemy {
     }
   }
 
-  atkQuarterlyBeam() {
+  atkQuarterlyBeam(color = 0xffd23f, line = 'QUARTERLY REVIEW — JUMP!') {
     const game = this.game;
     this.busy = true;
     const range = 26;
     const startAngle = Math.atan2((game.player?.pos.x ?? 0) - this.pos.x, (game.player?.pos.z ?? 0) - this.pos.z) - 1.2;
     const beamMesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.4, range),
-      new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.75 }));
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.75 }));
     game.scene.add(beamMesh);
     game.audio.sfx('alarm');
-    game.hud.announce('QUARTERLY REVIEW — JUMP!', 1.6, true);
+    game.hud.announce(line, 1.6, true);
     this.beamState = { t: 0, dur: 3.4, angle: startAngle, dir: 1, speed: 1.25, range, mesh: beamMesh, lastHit: new Map() };
   }
 

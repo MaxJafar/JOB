@@ -73,12 +73,18 @@ code path rather than failing to boot.
 
 ## The loop
 
-0. **Badge in at THE LOBBY** (ground floor) and fight your way UP the tower.
+0. **Badge in at a fire stairwell** and fight your way to the middle of the
+   floor. Every floor is a **hub**: a central ELEVATOR CORE — the only way up —
+   with four wings radiating out to the stairs on each side of the plate. In
+   co-op the team lands on **four different sides** and has to cut inward
+   through the department to meet at the core.
    Enemies die like dropped Lego sets — every body part detaches and tumbles.
    Desks, cabinets, and machines **break for real** (colliders and all).
 1. Kill feral coworkers for `$` and XP. Specials and bosses drop **briefcases**:
-   wearable clothing (visible on your character, real stats), throwables
-   (`G` — stapler grenades, tape balls, coffee molotovs), and consumables (`F`).
+   wearable clothing across four slots — **HEAD / BODY / LEGS / TRINKET** — that
+   every one renders on your character *and* on your teammates', with rarity
+   (SENIOR / EXECUTIVE) visible as a glow; plus throwables (`G` — stapler
+   grenades, tape balls, coffee molotovs) and consumables (`F`).
 2. Every level-up triggers a **PERFORMANCE REVIEW**: draft 1 of 3 perks,
    including **class evolutions** (ricochet staples, dust-storm broom waves,
    tax bombs, forking pink slips, overclocked beams, boomerang cards…).
@@ -90,10 +96,14 @@ code path rather than failing to boot.
    shred a common for cash, hydrate for a free heal.
 6. Chase optional **QUARTERLY KPIs** (kill sprints, spotless streaks,
    appliance demolition) for bonus budget and items.
-7. Find the **elevator** and call it → holdout crescendo → the **Department Head**
-   arrives *in the elevator*. Fire them. Board. Ascend.
-8. FINANCE → MARKETING → SALES → **THE PENTHOUSE**, where the C.E.O. waits
-   (two phases, throne mech, layoff shockwaves, quarterly laser).
+7. Regroup at the core and **call the elevator** — this is the whole back half
+   of a floor. Shutters slam down on all four core mouths, the department pours
+   in in scripted waves, and at 45% the biome's **FLOOR LEAD** overrides the
+   call: the progress bar hard-stops at 90% until you kill them. Then the
+   **Department Head** rides down to meet you. Fire them. Board. Ascend.
+8. LOBBY → **HUMAN RESOURCES** → **I.T.** → FINANCE → MARKETING → SALES →
+   **THE PENTHOUSE**, where the C.E.O. waits (two phases, throne mech, layoff
+   shockwaves, quarterly laser).
 9. Difficulty scales with **time**, not floors: PROBATION → CRUNCH TIME →
    HOSTILE WORKPLACE → MARKET COLLAPSE. Watch for floor-wide chaos —
    **LIGHTS OUT** and **FIRE DRILL** (frenzy, but 2× money). Post-win endless
@@ -114,10 +124,13 @@ Dash (`Q`) has i-frames and shakes off the Micromanager.
   targets you), **The Complainer** (scalding coffee pools), **The Micromanager**
   (pounces and rides you — mash `Space` or dash), **The Motivator** (rallies
   nearby mobs +30% speed — kill it first).
+- **Department specials** join the roster per biome: **The Mediator** (HR),
+  **The Sysadmin** (IT), **The Live-Streamer** (Marketing).
 - **Rares:** **KAREN** (witch — don't provoke her; she one-taps back) and
   **THE AUDITOR** (tank — drops a guaranteed item).
-- **Crescendos:** the elevator holdout, fire-alarm boxes (shoot = instant
-  horde), exploding espresso machines, popping vending machines (free sodas).
+- **Crescendos:** the sealed core holdout + floor lead, fire-alarm boxes
+  (shoot = instant horde), exploding espresso machines, popping vending
+  machines (free sodas).
 - Underneath it all: a Risk-of-Rain difficulty coefficient scaling enemy HP,
   damage, money, spawn caps, and **elite** rolls (OVERTIME / SYNERGIZED).
 
@@ -131,6 +144,30 @@ Dash (`Q`) has i-frames and shakes off the Micromanager.
 | 📁 THE HR REP | homing pink slips · slow-field "Mandatory Meeting" · -10% damage taken |
 | 💻 IT SUPPORT | chaining ethernet beam · router turrets · regen |
 | 📇 THE SALES REP | piercing business cards · "Cold Call" knockback cone · fastest |
+| 🧯 THE MARKETING MANAGER | **rides an office chair** · CO₂ extinguisher cone (chills crowds) · "Full Send" rocket-boost ram · cannot slide, drifts through turns |
+| 🥊 THE FACILITIES GUY | **no weapon — hands** · jab/jab/HAYMAKER combo · "Body Check" shoulder charge · 235 HP, 65% knockback resist |
+
+## Departments
+
+Every floor is a biome with its own staff, its own floor lead, and its own way
+of killing you. The mob is the mechanic:
+
+| floor | the threat | staff |
+|---|---|---|
+| **THE LOBBY** | tutorial pressure | Paperlings · Cubicle Drones · Rogue Printers · Roomba-C4 |
+| **HUMAN RESOURCES** | *you cannot leave* — slow, wide bodies whose hits **root** you, and each one nearby taxes your movement. Six of them is a cage. | Talent Partners · Intake Coordinators · **The Mediator** (lassos you into a mandatory 1:1 — dash to cut it) |
+| **I.T.** | everything is **live** — arcs and EMP fields take your dash, grenade and ability bar offline | Field Technicians (chaining tesla arcs) · Server Racks (walking damage aura) · **The Sysadmin** (drops EMP zones) |
+| **FINANCE** | attrition and elites | Copier Golems · Delivery Drones · **The Complainer** |
+| **MARKETING** | paper-thin and **endless** — 13 HP each, arriving forty at a time, screaming to pull the whole floor onto you | Brand Interns (scream + throw phones) · Growth Hackers · **The Live-Streamer** (goes live, marks you, summons an audience) |
+| **SALES** | commitment — telegraphed charges you have to read | Junior Closers (handshake charge) · **The Micromanager** |
+| **THE PENTHOUSE** | every department at once | all of the above |
+
+**Status effects** (chips appear above the crosshair):
+📋 **IN A MEETING** — rooted, HR. Diminishing returns mean each successive stun
+lands shorter, and **dash always works** — it is the one escape, and it costs
+your 3.6s cooldown. ⚡ **SYSTEMS OFFLINE** — IT shock: no dash, no ability, no
+grenade. 🪢 **DASH TO BREAK** — the Mediator is reeling you in.
+🚧 **BOXED IN** — the crowd tax, up to −60% move speed.
 
 ## Architecture
 

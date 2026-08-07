@@ -28,6 +28,7 @@
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
     "@recast-navigation/three": "^0.43.1",
+    "@three.ez/instanced-mesh": "^0.3.16",
     "bitecs": "^0.4.0",
     "comlink": "^4.4.2",
     "detect-gpu": "^5.0.70",
@@ -36,12 +37,16 @@
     "postprocessing": "^6.39.4",
     "recast-navigation": "^0.43.1",
     "seedrandom": "^3.0.5",
+    "stats-gl": "^4.2.3",
     "three": "^0.180.0",
+    "three-custom-shader-material": "^6.4.0",
     "three-mesh-bvh": "^0.9.14",
+    "three.quarks": "^0.16.0",
     "troika-three-text": "^0.52.5",
     "tweakpane": "^4.0.5",
     "ws": "^8.18.0",
     "xstate": "^5.32.5",
+    "yuka": "^0.7.8",
     "zod": "^4.4.3"
   },
   "devDependencies": {

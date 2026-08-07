@@ -34,6 +34,8 @@ export class Hud {
     this.prompt = $('interact-prompt');
     this.vignette = $('damage-vignette');
     this.latchOverlay = $('latch-overlay');
+    this.statusStrip = $('status-strip');
+    this._statusKey = '';
     this.toastStack = $('toast-stack');
     this.teamList = $('team-list');
     this.abilities = {
@@ -211,10 +213,12 @@ export class Hud {
 
   showInventory(p) {
     this.invRoot.classList.remove('hidden');
+    // the shipped glyph set names the leg slot "feet"
+    const GLYPH = { HEAD: 'head', BODY: 'body', LEGS: 'feet', TRINKET: 'trinket' };
     const slotRow = (type, g) => `
       <div class="inv-slot ${g ? '' : 'empty'}" ${g ? `style="border-color:${g.css}55"` : ''}>
         <div class="is-type">${type}</div>
-        <img class="equipment-glyph" src="/assets/ui/equipment/${type.toLowerCase()}@1x.png" alt="">
+        <img class="equipment-glyph" src="/assets/ui/equipment/${GLYPH[type]}@1x.png" alt="">
         <div>
           <div class="is-name" ${g ? `style="color:${g.css}"` : ''}>${g ? g.name : 'nothing equipped'}</div>
           ${g ? `<div class="is-stats">${describeStats(g.stats)}</div>` : ''}
@@ -223,6 +227,7 @@ export class Hud {
     this.invSlots.innerHTML =
       slotRow('HEAD', p.gearSlots.head) +
       slotRow('BODY', p.gearSlots.body) +
+      slotRow('LEGS', p.gearSlots.legs) +
       slotRow('TRINKET', p.gearSlots.trinket);
     this.invBag.innerHTML = p.gearBag.length
       ? p.gearBag.map((g, i) => `
@@ -335,6 +340,23 @@ export class Hud {
   setGoo(on) { this.vignette.classList.toggle('goo', on); }
   setLatch(on) { this.latchOverlay.classList.toggle('hidden', !on); }
 
+  /**
+   * Status chips. Only re-renders when the SET of active statuses changes —
+   * these tick every frame and rewriting innerHTML at 60 Hz for an unchanged
+   * list is exactly the kind of thing that shows up in a frame graph.
+   */
+  setStatuses(list) {
+    if (!this.statusStrip) return;
+    const key = list.map((s) => s.k).join('|');
+    if (key !== this._statusKey) {
+      this._statusKey = key;
+      this.statusStrip.innerHTML = list.map((s) =>
+        `<div class="status-chip" data-k="${s.k}"><span class="sc-ico">${s.icon}</span>${s.label}</div>`).join('');
+    }
+    this.vignette.classList.toggle('stun', list.some((s) => s.k === 'stun'));
+    this.vignette.classList.toggle('shock', list.some((s) => s.k === 'shock'));
+  }
+
   setPrompt(text) {
     if (!text) { this.prompt.classList.add('hidden'); return; }
     this.prompt.classList.remove('hidden');
@@ -368,6 +390,7 @@ export class Hud {
     this.toastStack.innerHTML = '';
     this.setLatch(false);
     this.setGoo(false);
+    this.setStatuses([]);
     this.setPrompt(null);
   }
 }
