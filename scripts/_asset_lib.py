@@ -196,11 +196,19 @@ def font_provenance(role: str) -> str:
         return str(path)
 
 
-def save_svg_png(rel_stem: str, svg: str, image: Image.Image) -> None:
+def save_svg_png(
+    rel_stem: str,
+    svg: str,
+    image: Image.Image,
+    *,
+    preserve_existing_png: bool = False,
+) -> None:
     svg_path = ASSET_ROOT / f"{rel_stem}.svg"
     png_path = ASSET_ROOT / f"{rel_stem}@1x.png"
     write_text(svg_path, svg)
     ensure(png_path)
+    if preserve_existing_png and png_path.exists():
+        return
     rgba = image if image.mode == "RGBA" else image.convert("RGBA")
     if png_path.exists():
         try:
@@ -216,14 +224,16 @@ def save_svg_png(rel_stem: str, svg: str, image: Image.Image) -> None:
     rgba.save(png_path, "PNG", optimize=False)
 
 
-def sync_public_assets() -> None:
+def sync_public_assets(families: tuple[str, ...] | None = None) -> None:
     """Mirror generated assets into Vite's production public directory."""
-    for source in ASSET_ROOT.rglob("*"):
-        if not source.is_file():
-            continue
-        target = PUBLIC_ASSET_ROOT / source.relative_to(ASSET_ROOT)
-        ensure(target)
-        shutil.copy2(source, target)
+    roots = [ASSET_ROOT / family for family in families] if families else [ASSET_ROOT]
+    for root in roots:
+        for source in root.rglob("*"):
+            if not source.is_file():
+                continue
+            target = PUBLIC_ASSET_ROOT / source.relative_to(ASSET_ROOT)
+            ensure(target)
+            shutil.copy2(source, target)
 
 
 def dimensions(path: Path) -> str:

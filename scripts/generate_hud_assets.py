@@ -28,7 +28,7 @@ from _asset_lib import (
     font,
     poly,
     rgba,
-    save_svg_png,
+    save_svg_png as save_asset_pair,
     svg_doc,
     sync_public_assets,
     update_ledger,
@@ -36,6 +36,11 @@ from _asset_lib import (
 
 
 VERSION = "hud-assets-v1"
+
+
+def save_svg_png(rel_stem: str, svg: str, image: Image.Image) -> None:
+    """Regenerate masters while keeping the approved Tier 1 PNG bytes frozen."""
+    save_asset_pair(rel_stem, svg, image, preserve_existing_png=True)
 
 
 def svg_panel(w: int, h: int, fill: str, edge: str, accent: str, clip: int = 16) -> str:

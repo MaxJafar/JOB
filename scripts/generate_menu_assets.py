@@ -42,6 +42,17 @@ from _asset_lib import (
 
 VERSION = "menu-pack-v1"
 CURRENT = "currentColor"
+MENU_FAMILIES = (
+    "glyphs",
+    "menuplates",
+    "classes",
+    "party",
+    "lobby",
+    "severance",
+    "controls",
+    "verdict",
+    "handbook",
+)
 Primitive = dict[str, Any]
 
 
@@ -858,16 +869,16 @@ def generate_handbook() -> list[Path]:
 def record_ledger_header() -> None:
     lines = LEDGER.read_text(encoding="utf-8").splitlines()
     replacements = {
-        "Generator:": "Generators: scripts/generate_hud_assets.py and scripts/generate_menu_assets.py  ",
-        "Generator version:": f"Generator versions: hud-assets-v1 + {VERSION}  ",
-        "Generator versions:": f"Generator versions: hud-assets-v1 + {VERSION}  ",
-        "Style lock:": "Style lock: docs/art/asset_style_lock.json version 1.1.0 (draft)  ",
+        "Generator:": "Generators: scripts/generate_hud_assets.py and scripts/generate_menu_assets.py",
+        "Generator version:": f"Generator versions: hud-assets-v1 + {VERSION}",
+        "Generator versions:": f"Generator versions: hud-assets-v1 + {VERSION}",
+        "Style lock:": "Style lock: docs/art/asset_style_lock.json version 1.1.0 (draft)",
         "Review status:": "Review status: development candidates; owner approval pending",
     }
     resolved = (
         "Resolved fonts: display "
         f"{font_provenance('display')}; ledger {font_provenance('ledger')}; "
-        f"Tier 1 compatibility {font_provenance('legacy_display')} / {font_provenance('legacy_ledger')}  "
+        f"Tier 1 compatibility {font_provenance('legacy_display')} / {font_provenance('legacy_ledger')}"
     )
     had_fonts = any(value.startswith("Resolved fonts:") for value in lines)
     found_fonts = False
@@ -903,7 +914,7 @@ def generate() -> list[Path]:
     outputs += generate_controls()
     outputs += generate_verdict()
     outputs += generate_handbook()
-    sync_public_assets()
+    sync_public_assets(MENU_FAMILIES)
     update_ledger()
     record_ledger_header()
     return outputs
