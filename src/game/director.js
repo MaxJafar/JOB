@@ -2,7 +2,7 @@
 // Left 4 Dead-style pacing engine layered on Risk of Rain difficulty scaling.
 // Tracks player stress (intensity), cycles RELAX → BUILDUP → PEAK → FADE,
 // spends spawn credits on mobs, meters out specials, and calls hordes.
-import { TUNE, DIFF_STAGES, ANNOUNCER } from './config.js';
+import { TUNE, DIFF_STAGES, ANNOUNCER, WAVES } from './config.js';
 import { ENEMY_DEFS, ELITE_MODS } from './enemies.js';
 import { weightedChoose, rand, chance, choose, clamp, dist2D } from '../core/utils.js';
 import { DirectorObservations, PressureModel } from '../ai/pressure.js';
@@ -29,7 +29,7 @@ export class Director {
     // under grace is subtracted from the difficulty clock — the run keeps
     // ticking, the pressure does not.
     this.spikeGraceT = 0;
-    if (floorIndex === 0) this.diffFrozen = 0;   // run-scoped, like game.runTime
+    if (floorIndex <= 0) this.diffFrozen = 0;   // run-scoped, like game.runTime (sandbox enters at -1)
     this.floorIndex = floorIndex;
     this.credits = 8;
     this.spawnTimer = 2;
@@ -111,12 +111,14 @@ export class Director {
   }
 
   queueHorde(n, _targets) {
-    n = Math.min(n, 26);
-    const table = [
-      { key: 'paperling', w: 6 },
-      { key: 'drone', w: 3 },
-      { key: 'roomba', w: this.coeff > 1.8 ? 1.5 : 0.4 },
-    ];
+    // horde composition lives in /data/waves.json; entries with `highAt` swap
+    // from wLow to wHigh once the difficulty coefficient passes the threshold
+    const H = WAVES.horde;
+    n = Math.min(n, H.cap);
+    const table = H.table.map((t) => ({
+      key: t.key,
+      w: t.highAt != null ? (this.coeff > t.highAt ? t.wHigh : t.wLow) : t.w,
+    }));
     for (let i = 0; i < n; i++) this.hordeQueue.push(weightedChoose(table).key);
   }
 

@@ -17,7 +17,9 @@
 // (D 3.3). Bosses drop a deterministic signature card: a jackpot you can plan
 // a run around.
 import * as THREE from 'three';
+import modulesData from '../../data/modules.json';
 import { clamp, dist2D } from '../core/utils.js';
+import { parseHexData, deepApply, announceDataReload } from './dataUtils.js';
 
 const _v = new THREE.Vector3();
 
@@ -28,11 +30,7 @@ const _v = new THREE.Vector3();
 // at ×2.25 is not an upgrade, it is a different game; abilities also get a
 // cooldown cut, which compounds. ×1.8 with a 22% shorter cooldown is already a
 // ~2.3× throughput swing.
-export const MODULE_TIERS = [
-  { key: 'common', prefix: '', mult: 1, cdMult: 1, color: 0x9aa3b0, css: '#9aa3b0' },
-  { key: 'uncommon', prefix: 'REVISED ', mult: 1.35, cdMult: 0.9, color: 0x58e07c, css: '#58e07c' },
-  { key: 'rare', prefix: 'PATENTED ', mult: 1.8, cdMult: 0.78, color: 0xffd23f, css: '#ffd23f' },
-];
+export const MODULE_TIERS = parseHexData(modulesData).tiers;
 
 const pct = (n) => `${Math.round(n * 100)}%`;
 
@@ -374,9 +372,10 @@ export const MODULE_BY_ID = Object.fromEntries(
 // rolling
 // ---------------------------------------------------------------------------
 function pickTier(rng, rarityBoost) {
+  const R = modulesData.roll;
   const r = rng() * 100;
-  if (r < 8 + rarityBoost * 26) return 2;
-  if (r < 36 + rarityBoost * 34) return 1;
+  if (r < R.rareBase + rarityBoost * R.rareBoost) return 2;
+  if (r < R.uncommonBase + rarityBoost * R.uncommonBoost) return 1;
   return 0;
 }
 
@@ -422,15 +421,7 @@ export function rollModule(rng = Math.random, opts = {}) {
  * BOSS_DEFS key, and each head hands over the card that matches how they fight:
  * Security gives you the charge that ran you over, HR gives you the meeting.
  */
-export const BOSS_MODULES = {
-  security: 'bodycheck',   // GUS DUTY — head of security
-  chro: 'meeting',         // CHRO — human resources
-  cto: 'router',           // CTO — I.T.
-  cfo: 'taxaudit',         // CFO — finance
-  cmo: 'fullsend',         // CMO — marketing
-  vp: 'coldcall',          // VP — sales
-  ceo: 'evacuate',         // the penthouse
-};
+export const BOSS_MODULES = modulesData.bossCards;
 
 /**
  * Pity timer. Drop rarity is not memoryless: every module that rolls common
@@ -442,7 +433,7 @@ export class ModuleLuck {
   reset() { this.dry = 0; }
 
   /** @returns {number} rarityBoost to feed rollModule */
-  boost(extra = 0) { return clamp(extra + this.dry * 0.14, 0, 1.2); }
+  boost(extra = 0) { return clamp(extra + this.dry * modulesData.roll.pityPerDry, 0, 1.2); }
 
   observe(mod) {
     if (mod.tier >= 1) this.dry = 0;
@@ -454,4 +445,25 @@ export class ModuleLuck {
 export function describeModule(mod) {
   if (!mod) return '';
   return mod.kind === 'special' ? `${mod.desc} · ${mod.cd}s cooldown` : mod.desc;
+}
+
+// Passive card values (`v` blocks) live in /data/modules.json and override the
+// authored defaults above — same pattern as classes.json (v0.2 FOUNDATIONS).
+export function applyModuleData(data = modulesData) {
+  for (const m of PASSIVE_MODULES) {
+    const v = data.passives?.[m.id];
+    if (v) deepApply(m.v, v);
+  }
+}
+applyModuleData();
+
+if (import.meta.hot) {
+  import.meta.hot.accept(['../../data/modules.json'], ([mod]) => {
+    if (!mod) return;
+    const fresh = parseHexData(mod.default);
+    deepApply(MODULE_TIERS, fresh.tiers);
+    deepApply(BOSS_MODULES, fresh.bossCards);
+    applyModuleData(fresh);
+    announceDataReload('modules.json');
+  });
 }

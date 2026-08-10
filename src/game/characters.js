@@ -107,12 +107,20 @@ export function makePerson(opts = {}) {
     const hairM = box(B.headS + 0.02, 0.12, B.headS + 0.02, hair); hairM.position.y = hTop + 0.03; headG.add(hairM);
     const hairB = box(B.headS + 0.02, 0.2, 0.1, hair); hairB.position.set(0, hTop - 0.07, -B.headS * 0.43); headG.add(hairB);
   }
-  // face: eyes
-  const eyeMat = zombie ? mat(0xff4444, { emissive: 0xaa0000, emissiveIntensity: 1.2 }) : mat(0x1a1d24);
+  // face: eyes. `zombie` reads as BURNT OUT, not undead — heavy-lidded dark
+  // eyes with under-eye bags instead of a red glow; the office is scary enough.
+  const eyeMat = zombie ? mat(0x2b3038) : mat(0x1a1d24);
   for (const side of [-1, 1]) {
-    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.06, zombie ? 0.05 : 0.07, 0.02), eyeMat);
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.06, zombie ? 0.045 : 0.07, 0.02), eyeMat);
     eye.position.set(side * 0.1, hy + 0.02, hFace);
     headG.add(eye);
+  }
+  if (zombie) {
+    for (const side of [-1, 1]) {
+      const bag = box(0.075, 0.028, 0.015, 0x9a8877);
+      bag.position.set(side * 0.1, hy - 0.035, hFace);
+      headG.add(bag);
+    }
   }
   // accessories
   if (accessories.includes('glasses')) {
@@ -207,9 +215,12 @@ export function makePerson(opts = {}) {
   }
 
   if (zombie) {
+    // hunched commuter slump: arms hang at the sides (one hand free for a
+    // briefcase), no more outstretched zombie reach
     torso.rotation.x = 0.22;
-    parts.armL.rotation.x = -1.15;
-    parts.armR.rotation.x = -1.25;
+    parts.armL.rotation.x = -0.28;
+    parts.armR.rotation.x = -0.18;
+    parts.armR.rotation.z = -0.12;
   }
   if (build === 'bulky') {
     // heavies stand with their arms pushed out by their own lats

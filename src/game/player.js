@@ -294,9 +294,12 @@ export class Player {
     this.shockT = 0;        // IT: abilities offline
     this.crowdDrag = 0;     // 0..0.6 movement tax from being boxed in
     this.tether = null;     // The Mediator's leash
+    // The Micromanager books you: a countdown you can beat, then a moment
+    // held in place — but your weapons keep working (see applyBooked).
+    this.meetingT = 0;      // seconds until the meeting starts (0 = none)
+    this.meetingBy = null;  // the Micromanager running the countdown
+    this.bookedT = 0;       // rooted in the meeting, still able to shoot
     this._offlineT = 0;
-    this.latch = null;      // micromanager enemy latched on
-    this.latchMash = 0;
     this.parachuteUsed = false;
     this.hurtFlash = 0;
     this.beamSfxT = 0;
@@ -411,9 +414,10 @@ export class Player {
       this.iframes = Math.max(this.iframes, TUNE.dashIFrames);
       g.audio.sfx('dash');
       g.effects.burst(this.pos.clone().setY(0.4), { color: 0xffffff, n: 8, speed: 3, size: 0.09, ttl: 0.3 });
-      this.detachLatch(true);   // dashing shakes off the micromanager
       this.breakTether();       // …and cuts the Mediator's leash
       this.stunT = 0;           // and is the only thing that ends a stun early
+      this.bookedT = 0;         // walking out of a meeting is always allowed
+      this.cancelMeeting();     // …and breaks the Micromanager's countdown
       // CAFFEINE DRIP: the dash stops being purely defensive
       const burn = this.passive('dashBurn');
       if (burn > 0) {
@@ -615,9 +619,9 @@ export class Player {
   die() {
     if (this.dead) return;
     this.dead = true;
-    this.detachLatch(false);
     this.breakTether(true);
-    this.stunT = this.shockT = this.crowdDrag = 0;
+    this.stunT = this.shockT = this.crowdDrag = this.bookedT = 0;
+    this.cancelMeeting();
     this.game.hud.setStatuses([]);
     this.game.effects.burst(this.centerPos, { color: 0xc03030, n: 24, speed: 6, ttl: 0.9 });
     // you too, buddy: Lego pieces everywhere
@@ -920,6 +924,31 @@ export class Player {
     if (fromPos) this.game.shake(0.12);
   }
 
+  /**
+   * The Micromanager's meeting. Deliberately NOT a stun: you are pinned in
+   * place but keep every weapon and ability, because a special that takes the
+   * mouse away is a special you cannot fight back against. Dash still leaves.
+   */
+  applyBooked(dur) {
+    if (this.dead || this.iframes > 0 || this.godMode) return;
+    this.bookedT = Math.max(this.bookedT, dur);
+    this.cancelMeeting();
+    this.game.audio.sfx('phone', { vol: 0.9 });
+    this.game.effects.ring(this.pos, { color: 0xffb347, r0: 2.6, r1: 1.4, dur: 0.45, opacity: 0.7 });
+    this.game.hud.toast('📅 MEETING STARTED — dash to walk out', 'warn');
+  }
+
+  /** Clear a pending countdown (he lost sight of you, or died, or it fired). */
+  cancelMeeting(quiet = true) {
+    if (!this.meetingT) return;
+    this.meetingT = 0;
+    this.meetingBy = null;
+    if (!quiet) {
+      this.game.audio.sfx('ui', { vol: 0.5 });
+      this.game.hud.toast('📅 meeting cancelled', 'item');
+    }
+  }
+
   /** IT's shock: you keep your feet, you lose your toolkit. */
   applyShock(dur) {
     if (this.dead || this.iframes > 0 || this.godMode) return;
@@ -949,19 +978,12 @@ export class Player {
   statusList() {
     const out = [];
     if (this.stunT > 0) out.push({ k: 'stun', icon: '📋', label: 'IN A MEETING' });
+    if (this.meetingT > 0) out.push({ k: 'meeting', icon: '📅', label: `MEETING IN ${Math.ceil(this.meetingT)}` });
+    if (this.bookedT > 0) out.push({ k: 'booked', icon: '📅', label: 'MEETING IN PROGRESS' });
     if (this.tether) out.push({ k: 'tether', icon: '🪢', label: 'DASH TO BREAK' });
     if (this.shockT > 0) out.push({ k: 'shock', icon: '⚡', label: 'SYSTEMS OFFLINE' });
     if (this.crowdDrag > 0.2) out.push({ k: 'crowd', icon: '🚧', label: 'BOXED IN' });
     return out;
-  }
-
-  detachLatch(hurtEnemy = true) {
-    if (!this.latch) return;
-    const mm = this.latch;
-    this.latch = null;
-    this.latchMash = 0;
-    this.game.hud.setLatch(false);
-    if (mm && !mm.dead) mm.onDetached(hurtEnemy);
   }
 
   // ---------- per-frame ----------
@@ -998,6 +1020,10 @@ export class Player {
     this.slowT = Math.max(0, this.slowT - dt);
     this.stunT = Math.max(0, this.stunT - dt);
     this.shockT = Math.max(0, this.shockT - dt);
+    this.bookedT = Math.max(0, this.bookedT - dt);
+    // the countdown itself is ticked by the Micromanager running it, so it
+    // stops the instant he dies or loses you — but drop it if he goes away
+    if (this.meetingT > 0 && (!this.meetingBy || this.meetingBy.dead)) this.cancelMeeting();
     this.boostT = Math.max(0, this.boostT - dt);
     this.chargeT = Math.max(0, this.chargeT - dt);
     this.shieldT = Math.max(0, this.shieldT - dt);
@@ -1030,19 +1056,21 @@ export class Player {
     // ---- movement ----
     // Everything below is INTENT. The motor owns the physics: see
     // src/player/motor.js for the accel model, collision sweep and step logic.
+    // `stunned` gates everything; `rooted` only pins your feet, so a booked
+    // meeting still lets you shoot your way out of it.
     const stunned = this.stunT > 0;
+    const rooted = stunned || this.bookedT > 0;
     let ix = 0, iz = 0;
-    if (!stunned) {
+    if (!rooted) {
       if (input.isDown('KeyW')) iz += 1;
       if (input.isDown('KeyS')) iz -= 1;
       if (input.isDown('KeyA')) ix -= 1;
       if (input.isDown('KeyD')) ix += 1;
     }
 
-    const sprinting = !stunned && input.isDown('ShiftLeft') && iz > 0 && this.slideT <= 0 && !this.blocking;
+    const sprinting = !rooted && input.isDown('ShiftLeft') && iz > 0 && this.slideT <= 0 && !this.blocking;
     let speedCap = this.stats.moveSpeed * (sprinting ? this.stats.sprintMult : 1);
     if (this.blocking) speedCap *= 0.55;
-    if (this.latch) speedCap *= 0.5;
     if (this.slowT > 0) speedCap *= 0.55;
     if (this.shockT > 0) speedCap *= 0.8;
     if (this.tether) speedCap *= 0.7;
@@ -1056,22 +1084,15 @@ export class Player {
     this.motor.setIntent({
       moveX: ix, moveZ: iz, yaw: this.yaw,
       sprint: sprinting,
-      jump: !stunned && input.pressed('Space'),
+      jump: !rooted && input.pressed('Space'),
       // you cannot slide on a chair — you are already sliding
-      slide: !stunned && !this.classDef.mount && (input.pressed('ControlLeft') || input.pressed('KeyC')),
+      slide: !rooted && !this.classDef.mount && (input.pressed('ControlLeft') || input.pressed('KeyC')),
       dash: wantDash,
       speedCap,
       dashCd: this.stats.dashCd,
       canAct: !this.dead,
     });
     this.motor.update(dt);
-
-    // latch mash — Space does double duty while a Micromanager is riding you
-    if (this.latch && input.pressed('Space')) {
-      this.latchMash++;
-      game.shake(0.15);
-      if (this.latchMash >= 5) this.detachLatch(true);
-    }
 
     // footsteps
     const hSpeed = this.motor.speed;
@@ -1341,9 +1362,10 @@ export class Player {
       cam.position.y += (Math.random() - 0.5) * game.camShakeAmt * 0.5;
       cam.position.z += (Math.random() - 0.5) * game.camShakeAmt * 0.5;
     }
-    if (this.latch) {
-      cam.position.x += Math.sin(game.runTime * 30) * 0.04;
-      cam.position.y += Math.cos(game.runTime * 26) * 0.04;
+    // being held in a meeting nudges the camera — you are fidgeting
+    if (this.bookedT > 0) {
+      cam.position.x += Math.sin(game.runTime * 18) * 0.02;
+      cam.position.y += Math.cos(game.runTime * 15) * 0.02;
     }
   }
 
@@ -1398,9 +1420,10 @@ export class RemotePlayer {
     this.gooT = 0;
     this.slowT = 0;
     this.gooResist = false;
-    this.latch = null;
-    this.latchMash = 0;
     this.tether = null;
+    this.meetingT = 0;
+    this.meetingBy = null;
+    this.bookedT = 0;
 
     const def = CLASS_BY_KEY[this.classKey] ?? CLASS_BY_KEY.intern;
     const person = makePerson({

@@ -2,94 +2,37 @@
 // Base office mobs + L4D-style specials (Gossip/Complainer/Micromanager)
 // + rares (Karen = witch, Auditor = tank).
 import * as THREE from 'three';
+import enemiesData from '../../data/enemies.json';
 import { makePerson, animateWalk, poseIdle, makeHeldItem } from './characters.js';
 import { mat, box, cyl } from './props.js';
 import { rand, chance, dist2D, nextId, clamp } from '../core/utils.js';
 import { PathAgent } from '../core/navmesh.js';
+import { parseHexData, deepApply, announceDataReload } from './dataUtils.js';
 
 const _v1 = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _navTo = new THREE.Vector3();
 
-export const ENEMY_DEFS = {
-  // ---------- tower-wide staff (every floor) ----------
-  paperling: { name: 'Paperling', hp: 16, dmg: 7, speed: 6.8, radius: 0.42, centerY: 0.45, xp: 2, money: 4, credit: 5, ai: 'melee', attackRange: 1.5, attackCd: 1.1, windup: 0.3 },
-  drone: { name: 'Cubicle Drone', hp: 46, dmg: 12, speed: 3.8, radius: 0.5, centerY: 1.0, xp: 4, money: 7, credit: 9, ai: 'melee', attackRange: 1.7, attackCd: 1.4, windup: 0.42 },
-  printer: { name: 'Rogue Printer', hp: 70, dmg: 9, speed: 2.4, radius: 0.65, centerY: 0.6, xp: 6, money: 10, credit: 13, ai: 'ranged', rangeMin: 8, rangeMax: 19, volley: 3, volleyCd: 2.7, projSpeed: 17 },
-  roomba: { name: 'Roomba-C4', hp: 24, dmg: 27, speed: 8.2, radius: 0.45, centerY: 0.2, xp: 5, money: 8, credit: 11, ai: 'kamikaze', fuse: 0.55, aoe: 3.4 },
-  quad: { name: 'Delivery Drone', hp: 38, dmg: 9, speed: 5.2, radius: 0.5, centerY: 0, xp: 6, money: 10, credit: 14, ai: 'flyer', hover: 3.4, rangeMin: 6, rangeMax: 15, volleyCd: 2.2, projSpeed: 20 },
-  copier: { name: 'Copier Golem', hp: 260, dmg: 21, speed: 2.8, radius: 0.95, centerY: 1.2, xp: 18, money: 28, credit: 30, ai: 'melee', attackRange: 2.4, attackCd: 1.9, windup: 0.6, big: true },
-  gossip: { name: 'The Gossip', hp: 80, dmg: 0, speed: 3.2, radius: 0.6, centerY: 1.0, xp: 10, money: 16, credit: 20, ai: 'gossip', special: true, popRange: 3.0 },
-  complainer: { name: 'The Complainer', hp: 95, dmg: 9, speed: 3.5, radius: 0.55, centerY: 1.0, xp: 12, money: 18, credit: 24, ai: 'spitter', rangeMin: 9, rangeMax: 18, volleyCd: 3.4, special: true },
-  micromanager: { name: 'The Micromanager', hp: 65, dmg: 6, speed: 6.4, radius: 0.45, centerY: 0.8, xp: 14, money: 20, credit: 26, ai: 'jockey', special: true },
-  motivator: { name: 'The Motivator', hp: 90, dmg: 0, speed: 3.8, radius: 0.5, centerY: 1.0, xp: 14, money: 22, credit: 22, ai: 'rally', special: true },
-  karen: { name: 'KAREN', hp: 950, dmg: 46, speed: 8.6, radius: 0.5, centerY: 1.0, xp: 90, money: 150, credit: 0, ai: 'karen', rare: true },
-  auditor: { name: 'THE AUDITOR', hp: 1600, dmg: 32, speed: 3.6, radius: 1.15, centerY: 1.6, xp: 130, money: 240, credit: 110, ai: 'auditor', rare: true, big: true },
+// Enemy stat tables live in /data/enemies.json (v0.2 FOUNDATIONS — edit the
+// file in dev and it hot-applies). Design intent that used to sit inline:
+// HR reps are slow and wide with a stun on contact — two are an inconvenience,
+// six are a meeting you do not get to walk out of; MARKETING interns are
+// paper-thin, deafening and endless; the 'dummy' is the sandbox's crash-test
+// temp (0 dmg, 0 speed, respawned by the training floor). Bosses are injected
+// on top of ENEMY_DEFS by bosses.js.
+parseHexData(enemiesData);
+export const ENEMY_DEFS = enemiesData.defs;
+export const ELITE_MODS = enemiesData.eliteMods;
 
-  // ---------- HUMAN RESOURCES ----------
-  // The threat here is not damage, it is being unable to leave. Reps are slow
-  // and wide with a stun on contact; two of them is an inconvenience, six of
-  // them is a meeting you do not get to walk out of.
-  hrrep: {
-    name: 'Talent Partner', hp: 125, dmg: 11, speed: 2.4, radius: 0.8, centerY: 1.0,
-    xp: 7, money: 12, credit: 13, ai: 'stunner', attackRange: 2.2, attackCd: 1.8,
-    windup: 0.5, stun: 0.85, crowd: 0.17, biome: 'hr',
-  },
-  intake: {
-    name: 'Intake Coordinator', hp: 78, dmg: 9, speed: 3.2, radius: 0.55, centerY: 1.0,
-    xp: 6, money: 10, credit: 12, ai: 'ranged', rangeMin: 7, rangeMax: 17, volley: 2,
-    volleyCd: 2.9, projSpeed: 16, projKind: 'form', slowOnHit: 2.4, biome: 'hr',
-  },
-  mediator: {
-    name: 'The Mediator', hp: 160, dmg: 9, speed: 3.0, radius: 0.6, centerY: 1.0,
-    xp: 16, money: 26, credit: 28, ai: 'tether', special: true,
-    tetherRange: 17, tetherPull: 5.4, tetherTime: 3.4, biome: 'hr',
-  },
-
-  // ---------- I.T. ----------
-  itguy: {
-    name: 'Field Technician', hp: 64, dmg: 9, speed: 4.4, radius: 0.5, centerY: 1.0,
-    xp: 6, money: 11, credit: 12, ai: 'tesla', arcRange: 10, attackCd: 2.4,
-    windup: 0.5, shock: 1.5, biome: 'it',
-  },
-  pylon: {
-    name: 'Server Rack', hp: 250, dmg: 8, speed: 1.7, radius: 0.9, centerY: 1.1,
-    xp: 14, money: 22, credit: 26, ai: 'aura', auraRadius: 4.4, auraCd: 0.6, big: true, biome: 'it',
-  },
-  sysadmin: {
-    name: 'The Sysadmin', hp: 170, dmg: 10, speed: 3.6, radius: 0.55, centerY: 1.0,
-    xp: 18, money: 28, credit: 32, ai: 'emp', special: true, empRange: 20, biome: 'it',
-  },
-
-  // ---------- MARKETING ----------
-  // Paper-thin, deafening, and endless. They die to a stiff breeze and arrive
-  // forty at a time.
-  influencer: {
-    name: 'Brand Intern', hp: 13, dmg: 6, speed: 9.4, radius: 0.36, centerY: 0.82,
-    xp: 2, money: 4, credit: 4, ai: 'screamer', attackRange: 1.5, attackCd: 0.85,
-    windup: 0.2, screamCd: 6, throwCd: 5, biome: 'marketing',
-  },
-  growth: {
-    name: 'Growth Hacker', hp: 50, dmg: 10, speed: 6.0, radius: 0.46, centerY: 1.0,
-    xp: 5, money: 9, credit: 10, ai: 'ranged', rangeMin: 6, rangeMax: 15, volley: 3,
-    volleyCd: 2.2, projSpeed: 21, projKind: 'brand', biome: 'marketing',
-  },
-  streamer: {
-    name: 'The Live-Streamer', hp: 145, dmg: 0, speed: 4.4, radius: 0.55, centerY: 1.0,
-    xp: 18, money: 30, credit: 30, ai: 'stream', special: true, biome: 'marketing',
-  },
-
-  // ---------- SALES ----------
-  closer: {
-    name: 'Junior Closer', hp: 95, dmg: 19, speed: 5.0, radius: 0.5, centerY: 1.0,
-    xp: 8, money: 14, credit: 16, ai: 'charger', chargeRange: 15, attackCd: 4.2, biome: 'sales',
-  },
-};
-
-export const ELITE_MODS = {
-  overtime: { name: 'OVERTIME', tint: 0xff5a2d, hpMult: 1.7, dmgMult: 1.3, speedMult: 1.45, costMult: 4 },
-  synergy: { name: 'SYNERGIZED', tint: 0x38e1ff, hpMult: 2.6, dmgMult: 1.1, speedMult: 1.0, costMult: 4.5, deathNova: true },
-};
+if (import.meta.hot) {
+  import.meta.hot.accept(['../../data/enemies.json'], ([mod]) => {
+    if (!mod) return;
+    const fresh = parseHexData(mod.default);
+    deepApply(ENEMY_DEFS, fresh.defs);
+    deepApply(ELITE_MODS, fresh.eliteMods);
+    announceDataReload('enemies.json');
+  });
+}
 
 const DRAB = [0x8a8f98, 0x7d8595, 0x93887c, 0x7c8a80, 0x9089a0];
 const rngPick = (arr) => arr[(Math.random() * arr.length) | 0];
@@ -101,28 +44,47 @@ function buildMesh(key, elite) {
 
   switch (key) {
     case 'paperling': {
-      const body = new THREE.Mesh(new THREE.IcosahedronGeometry(0.4, 0), mat(0xeeeeee, { rough: 0.95 }));
-      body.position.y = 0.42;
-      body.castShadow = true;
-      for (const side of [-1, 1]) {
-        const eye = box(0.09, 0.09, 0.02, 0xc03030, { emissive: 0x881111, emissiveIntensity: 1.5 });
-        eye.position.set(side * 0.13, 0.5, 0.34);
-        g.add(eye);
+      // a stack of unfiled expense reports that got up and walked: white sheet
+      // slabs askew on bent-paperclip legs, bound by a strip of red tape, with
+      // a flapping top sheet for a mouth. Dark dot eyes — nothing glows red.
+      const stack = new THREE.Group();
+      for (let i = 0; i < 4; i++) {
+        const sheet = box(0.74 - i * 0.05, 0.075, 0.54 - i * 0.04, i % 2 ? 0xf2f2ee : 0xe3e3dc, { rough: 0.95 });
+        sheet.position.y = 0.3 + i * 0.078;
+        sheet.rotation.y = (i % 2 ? -1 : 1) * (0.1 + i * 0.06);
+        stack.add(sheet);
       }
-      const legL = box(0.08, 0.24, 0.08, 0xd8d8d8); legL.position.set(-0.14, 0.12, 0);
-      const legR = legL.clone(); legR.position.x = 0.14;
-      g.add(body, legL, legR);
-      parts.body = body; parts.legL = legL; parts.legR = legR;
+      const top = box(0.6, 0.05, 0.44, 0xffffff, { rough: 0.9 });
+      top.position.set(0, 0.64, 0.02);
+      top.rotation.y = 0.24;
+      stack.add(top);
+      const tape = box(0.18, 0.36, 0.58, 0xc03030, { rough: 0.8 });
+      tape.position.y = 0.44;
+      stack.add(tape);
+      for (const side of [-1, 1]) {
+        const eye = box(0.07, 0.07, 0.02, 0x1a1d24);
+        eye.position.set(side * 0.15, 0.52, 0.29);
+        stack.add(eye);
+      }
+      g.add(stack);
+      const legL = cyl(0.028, 0.028, 0.27, 0x8f959d, 6); legL.position.set(-0.17, 0.13, 0);
+      const legR = legL.clone(); legR.position.x = 0.17;
+      g.add(legL, legR);
+      parts.body = stack; parts.legL = legL; parts.legR = legR; parts.topSheet = top;
       break;
     }
     case 'drone': {
+      // not a zombie — a coworker at the end of a 14-hour day, dragging a
+      // briefcase toward you like it's one more meeting
       const p = makePerson({
-        skin: 0xb9b3ab, shirt: DRAB[(Math.random() * DRAB.length) | 0], pants: 0x3c414c,
+        skin: 0xc9baa8, shirt: DRAB[(Math.random() * DRAB.length) | 0], pants: 0x3c414c,
         tie: chance(0.7) ? 0x5d2f35 : null, zombie: true, hair: 0x2c2c2c,
       });
       g.add(p.root);
       Object.assign(parts, p.parts);
       parts.person = p;
+      const briefcase = makeHeldItem('ledger');
+      p.parts.grip.add(briefcase);
       break;
     }
     case 'printer': {
@@ -229,6 +191,13 @@ function buildMesh(key, elite) {
       parts.person = p;
       p.parts.armL.rotation.x = -1.1; p.parts.armL.rotation.z = 0.9;   // crossed arms
       p.parts.armR.rotation.x = -1.1; p.parts.armR.rotation.z = -0.9;
+      // the phone is the weapon: it comes up to film you long before she moves
+      const phone = makeHeldItem('phone');
+      p.parts.grip.add(phone);
+      const rec = box(0.06, 0.06, 0.02, 0xff3b30, { emissive: 0xff3b30, emissiveIntensity: 2.4 });
+      rec.position.set(0, 0.16, 0.06);
+      phone.add(rec);
+      parts.recLight = rec;
       break;
     }
     case 'auditor': {
@@ -239,6 +208,18 @@ function buildMesh(key, elite) {
       parts.person = p;
       const case1 = makeHeldItem('ledger');
       p.parts.grip.add(case1);
+      break;
+    }
+    case 'dummy': {
+      // the sandbox's crash-test temp: stands on a pedestal, takes hits,
+      // never files a complaint
+      const p = makePerson({ skin: 0xe8e2d8, shirt: 0xff9b2d, pants: 0xd9dde3, hair: 0x9aa3b0, zombie: true });
+      g.add(p.root);
+      Object.assign(parts, p.parts);
+      parts.person = p;
+      const base = cyl(0.55, 0.6, 0.12, 0x3c414c, 12);
+      base.position.y = 0.06;
+      g.add(base);
       break;
     }
 
@@ -498,7 +479,6 @@ export class Enemy {
     this.orbitDir = chance(0.5) ? 1 : -1;
     this.deathT = -1;
     this.fuseT = -1;        // roomba
-    this.latchedTo = null;  // micromanager
     this.detachCd = 0;
     this.throwCd = 5;       // auditor
     this.beepT = 0;
@@ -584,7 +564,9 @@ export class Enemy {
       }
     }
 
-    const s = this.speed * speedMult * this.slowFactor * (this.rallyT > 0 ? 1.3 : 1);
+    // `this.speedMult` is a persistent multiplier the Auditor's findings raise;
+    // `speedMult` is the per-call gait for this one step.
+    const s = this.speed * speedMult * (this.speedMult ?? 1) * this.slowFactor * (this.rallyT > 0 ? 1.3 : 1);
     this.pos.x += dx * s * dt;
     this.pos.z += dz * s * dt;
     this.faceYaw = Math.atan2(dx, dz);
@@ -648,17 +630,15 @@ export class Enemy {
     }
     if (this.tetherT > 0) this.updateTether(dt);
 
-    const target = this.state === 'latched' ? this.latchedTo : (this.target && !this.target.dead ? this.target : this.pickTarget());
+    const target = this.target && !this.target.dead ? this.target : this.pickTarget();
     this.target = target;
     // staggered: still bleeds, still gets pushed, just does not act
     if (target && this.stunT <= 0) this.ai(dt, target);
 
-    // world collision & separation (latched riders skip; flyers still respect
+    // world collision & separation (flyers still respect
     // walls — rooms have real walls now, and 4.6m walls beat a 3.4m hover)
-    if (this.state !== 'latched') {
-      if (this.def.ai !== 'flyer') this.separate(dt);
-      this.game.level.collideCircle(this.pos, this.radius, this.pos.y, 1);
-    }
+    if (this.def.ai !== 'flyer') this.separate(dt);
+    this.game.level.collideCircle(this.pos, this.radius, this.pos.y, 1);
 
     // audit tint feedback
     const audited = this.auditT > 0;
@@ -692,8 +672,41 @@ export class Enemy {
           }
           break;
         }
-        if (d > def.attackRange) this.moveToward(target.pos.x, target.pos.z, dt);
-        else if (this.attackCd <= 0) {
+        // `lull` (drones): they stop to check their phone. A telegraphed window
+        // where a shambling body is briefly a free target — the readable beat a
+        // constant walk-cycle never gave you.
+        if (def.lull) {
+          this.lullT = (this.lullT ?? 0) - dt;
+          if (this.lullT > 0) { this.faceYaw = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z); break; }
+          this.lullNext = (this.lullNext ?? rand(2, def.lull.every)) - dt;
+          if (this.lullNext <= 0 && d > def.attackRange + 1) {
+            this.lullT = def.lull.dur;
+            this.lullNext = def.lull.every * rand(0.7, 1.3);
+            game.audio.sfx('ui', { vol: 0.22 });
+            break;
+          }
+        }
+        // `burst` (paperlings): scatter-hop in bursts instead of tracking you
+        // in a dead-straight line, so a swarm reads as skittering paper.
+        let speedScale = 1;
+        if (def.burst) {
+          this.burstT = (this.burstT ?? rand(0, def.burst.run)) - dt;
+          if (this.burstT <= 0) {
+            this.bursting = !this.bursting;
+            this.burstT = (this.bursting ? def.burst.run : def.burst.rest) * rand(0.75, 1.25);
+            if (this.bursting) this.burstYaw = rand(-0.5, 0.5);   // a new scatter angle each dart
+          }
+          speedScale = this.bursting ? def.burst.boost : 0.12;
+        }
+        if (d > def.attackRange) {
+          if (def.burst && this.bursting) {
+            // dart at an angle off the direct line — the scatter, not a detour
+            const a = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z) + (this.burstYaw ?? 0);
+            this.moveToward(this.pos.x + Math.sin(a) * 4, this.pos.z + Math.cos(a) * 4, dt, speedScale);
+          } else {
+            this.moveToward(target.pos.x, target.pos.z, dt, speedScale);
+          }
+        } else if (this.attackCd <= 0) {
           this.windupT = def.windup;
           this.strikeAnim = 0.5;
         }
@@ -771,91 +784,118 @@ export class Enemy {
         }
         break;
       }
-      case 'gossip': {
-        this.moveToward(target.pos.x, target.pos.z, dt);
-        if (d < def.popRange) this.pop();
+      // ---- THE GOSSIP: an interruptible broadcast, not a contact explosion ----
+      // She never touches you. She finds a spot, puts the phone to her ear and
+      // openly starts spreading it — a ringtone, a widening ring, four seconds
+      // of "shut her up". Kill her mid-call and the rumor dies with her; let it
+      // land and the whole floor has heard.
+      case 'rumor': {
+        if (this.casting) {
+          this.castT -= dt;
+          const frac = 1 - this.castT / def.castTime;
+          this.faceYaw = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
+          this.ringPulse = (this.ringPulse ?? 0) - dt;
+          if (this.ringPulse <= 0) {
+            this.ringPulse = 0.5;
+            game.effects.ring(this.pos, {
+              color: 0x86d86b, r0: 0.6, r1: def.rumorRadius * Math.max(0.25, frac), dur: 0.5, opacity: 0.5,
+            });
+            game.audio.sfx('phone', { vol: 0.5 + frac * 0.5 });
+          }
+          if (this.castT <= 0) this.completeRumor();
+          break;
+        }
+        // hold at broadcast range: close enough to matter, too far to punish
+        if (d < def.castRange - 4) this.moveToward(this.pos.x * 2 - target.pos.x, this.pos.z * 2 - target.pos.z, dt, 1.05);
+        else if (d > def.castRange) this.moveToward(target.pos.x, target.pos.z, dt);
+        else if (this.attackCd <= 0) this.startRumor();
+        else this.faceYaw = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
         break;
       }
-      case 'spitter': {
+
+      // ---- THE COMPLAINER: files tickets, does not spit acid ----
+      // The hazard is bureaucratic: a filed TICKET silences your abilities and
+      // heals the staff standing in it. It is also a 1 HP piece of paperwork —
+      // shoot the paperwork.
+      case 'ticketer': {
         if (d < def.rangeMin - 2) this.moveToward(this.pos.x * 2 - target.pos.x, this.pos.z * 2 - target.pos.z, dt, 0.9);
         else if (d > def.rangeMax) this.moveToward(target.pos.x, target.pos.z, dt);
         else this.faceYaw = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
-        if (this.attackCd <= 0 && d < def.rangeMax + 2) {
+        if (this.attackCd <= 0 && d < def.rangeMax + 2 && game.ticketCount() < def.ticketCap) {
           this.attackCd = def.volleyCd * rand(0.9, 1.15);
-          // lob a coffee glob with a gravity arc onto the target
+          // lob the complaint at your feet: a filing, not a projectile duel
           const dir = _v1.copy(target.pos).sub(this.pos);
           const dist = dir.length();
           dir.normalize();
           const speed = clamp(dist * 1.1, 8, 20);
           game.projectiles.spawn({
             pos: this.center.clone(), vel: dir.multiplyScalar(speed).setY(6 + dist * 0.22),
-            gravity: 14, kind: 'coffee', damage: this.dmg, friendly: false, ttl: 4, radius: 0.22,
-            aoe: 1.6, puddle: { radius: 2.7, dps: 10, ttl: 6, kind: 'coffee' },
+            gravity: 14, kind: 'form', damage: this.dmg, friendly: false, ttl: 4, radius: 0.22,
+            aoe: 1.4, onLand: (pos) => game.spawnTicket(pos, def),
           });
-          game.audio.sfx('spit');
+          game.audio.sfx('slip', { vol: 0.8 });
           this.strikeAnim = 0.5;
         }
         break;
       }
-      case 'jockey': {
-        if (this.state === 'latched') {
-          const t = this.latchedTo;
-          if (!t || t.dead || t.latch !== this) { this.state = 'flee'; this.stateT = 2; this.latchedTo = null; break; }
-          // ride the shoulders, tick damage
-          this.pos.set(t.pos.x, t.pos.y + 1.1, t.pos.z);
-          this.tickT = (this.tickT ?? 0) - dt;
-          if (this.tickT <= 0) { t.damage(this.dmg, this.pos, { from: this.key }); this.tickT = 0.8; }
-          break;
-        }
-        if (this.state === 'flee') {
-          this.stateT -= dt;
-          this.moveToward(this.pos.x * 2 - target.pos.x, this.pos.z * 2 - target.pos.z, dt, 1.2);
-          if (this.stateT <= 0) { this.state = 'stalk'; this.detachCd = 5; }
-          break;
-        }
-        if (this.state === 'pounce') {
-          // ballistic leap
-          this.vy = (this.vy ?? 7) - 22 * dt;
-          this.pos.y += this.vy * dt;
-          this.pos.x += this.pvx * dt;
-          this.pos.z += this.pvz * dt;
-          if (d < 1.3 && this.pos.y < 1.8 && !target.dead && !target.latch && this.detachCd <= 0) {
-            // LATCHED!
-            this.state = 'latched';
-            this.latchedTo = target;
-            target.latch = this;
-            target.latchMash = 0;
-            game.hud.setLatch(target === game.player);
-            game.audio.sfx('pounce');
+
+      // ---- THE MICROMANAGER: he books you, he does not ride you ----
+      // Line of sight IS the mechanic. While he can see you a meeting invite
+      // counts down over your head; put a wall between you, dash, or kill him
+      // and it dies. Let it land and you are held in place for a moment —
+      // still shooting, because taking the mouse away is not counterplay.
+      case 'scheduler': {
+        const booking = target.meetingBy === this && (target.meetingT ?? 0) > 0;
+        if (booking) {
+          const blocked = game.level.losBlocked(this.pos.x, this.pos.z, target.pos.x, target.pos.z);
+          if (blocked || d > def.cancelRange || target.dead) {
+            target.cancelMeeting?.(false);
+            this.attackCd = rand(2.5, 4);
+            break;
           }
-          if (this.pos.y <= 0) { this.pos.y = 0; this.state = 'stalk'; this.attackCd = 1.2; }
+          target.meetingT -= dt;
+          this.faceYaw = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
+          // he closes while the clock runs — the pressure is that he is coming
+          if (d > def.orbitRange - 2) this.moveToward(target.pos.x, target.pos.z, dt, 0.9);
+          const sec = Math.ceil(target.meetingT);
+          if (sec !== this.lastPing) {
+            this.lastPing = sec;
+            game.audio.sfx('ui2', { vol: 0.55 });
+            game.effects.ring(target.pos, { color: 0xffb347, r0: 2.2, r1: 1.1, dur: 0.4, opacity: 0.55 });
+          }
+          if (target.meetingT <= 0) {
+            target.applyBooked?.(def.bookTime);
+            this.attackCd = rand(8, 11);
+            game.hud.announce('📅 YOU HAVE BEEN SCHEDULED', 1.8, true);
+          }
           break;
         }
-        // stalk: circle at range, then pounce
-        this.state = 'stalk';
-        const orbitR = 9;
-        const px = -(target.pos.z - this.pos.z), pz = (target.pos.x - this.pos.x);
-        const pl = Math.hypot(px, pz) || 1;
-        if (d > orbitR + 3) this.moveToward(target.pos.x, target.pos.z, dt, 1.1);
-        else if (d < orbitR - 3) this.moveToward(this.pos.x * 2 - target.pos.x, this.pos.z * 2 - target.pos.z, dt, 0.9);
-        else this.moveToward(this.pos.x + (px / pl) * this.orbitDir * 3, this.pos.z + (pz / pl) * this.orbitDir * 3, dt, 0.85);
-        if (this.attackCd <= 0 && this.detachCd <= 0 && d < 14 && !target.latch) {
-          this.attackCd = rand(4, 7);
-          if (!game.level.losBlocked(this.pos.x, this.pos.z, target.pos.x, target.pos.z)) {
-            // windup scream then leap
-            this.windupT = 0.45;
-            game.audio.sfx('pounce', { vol: 0.7 });
-            game.delayed(0.45, () => {
-              if (this.dead || this.state === 'latched') return;
-              this.state = 'pounce';
-              const dir = _v1.copy(target.pos).sub(this.pos);
-              const dist2 = dir.length();
-              dir.normalize();
-              const spd = clamp(dist2 * 1.35, 8, 10);
-              this.pvx = dir.x * spd; this.pvz = dir.z * spd;
-              this.vy = 6.5;
-            });
-          }
+        // no invite pending: keep his distance, poke if cornered, re-book when ready
+        if (d < 2.6 && this.attackCd > 0.4) {
+          if (this.windupT > 0) {
+            this.windupT -= dt;
+            if (this.windupT <= 0) {
+              if (dist2D(target.pos, this.pos) < def.attackRange + 0.6) target.damage(this.dmg, this.pos, { from: this.key });
+              this.jabCd = 1.6;
+            }
+          } else if ((this.jabCd ?? 0) <= 0) {
+            this.windupT = def.windup;
+            this.strikeAnim = 0.5;
+          } else this.jabCd -= dt;
+          this.moveToward(this.pos.x * 2 - target.pos.x, this.pos.z * 2 - target.pos.z, dt, 0.8);
+          break;
+        }
+        if (d > def.orbitRange + 3) this.moveToward(target.pos.x, target.pos.z, dt, 1.1);
+        else if (d < def.orbitRange - 3) this.moveToward(this.pos.x * 2 - target.pos.x, this.pos.z * 2 - target.pos.z, dt, 0.9);
+        else {
+          const px = -(target.pos.z - this.pos.z), pz = (target.pos.x - this.pos.x);
+          const pl = Math.hypot(px, pz) || 1;
+          this.moveToward(this.pos.x + (px / pl) * this.orbitDir * 3, this.pos.z + (pz / pl) * this.orbitDir * 3, dt, 0.85);
+          this.faceYaw = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
+        }
+        if (this.attackCd <= 0 && d < def.scheduleRange && !(target.meetingT > 0)
+          && !game.level.losBlocked(this.pos.x, this.pos.z, target.pos.x, target.pos.z)) {
+          this.scheduleMeeting(target);
         }
         break;
       }
@@ -883,10 +923,20 @@ export class Enemy {
       case 'karen': {
         if (this.state === 'idle') {
           // provoked by damage (handled in damageEnemy) or loitering close
-          if (d < 3.4) {
+          // She is not a witch you must not startle — she is filming you. The
+          // provoke condition is being ON CAMERA: get close and stay in her
+          // line of sight and the phone comes up with a red REC dot. Break the
+          // shot (a wall, distance) and the recording is discarded.
+          const onCamera = d < def.filmRange
+            && !game.level.losBlocked(this.pos.x, this.pos.z, target.pos.x, target.pos.z);
+          if (onCamera) {
+            if (this.provokeT <= 0) game.audio.sfx('ui2', { vol: 0.7 });
             this.provokeT += dt;
-            if (this.provokeT > 2) this.provoke(target);
-          } else this.provokeT = Math.max(0, this.provokeT - dt);
+            this.faceYaw = Math.atan2(target.pos.x - this.pos.x, target.pos.z - this.pos.z);
+            if (this.provokeT > def.filmTime) this.provoke(target);
+          } else {
+            this.provokeT = Math.max(0, this.provokeT - dt * 1.6);
+          }
           break;
         }
         if (this.state === 'screaming') {
@@ -909,6 +959,12 @@ export class Enemy {
         break;
       }
       case 'auditor': {
+        // He does not just have more health — he audits you. Every so often he
+        // issues a DEMAND with a deadline. Meet it and he has to accept it and
+        // stands there taking the loss; miss it and he files a FINDING against
+        // you and gets harder. The tank stat-check becomes a chase you choose
+        // to answer or eat.
+        this.updateAudit(dt);
         if (this.windupT > 0) {
           this.windupT -= dt;
           break;
@@ -1272,23 +1328,99 @@ export class Enemy {
     }
   }
 
-  pop() {
-    // the Gossip explodes into rumor gas: marks players, calls a horde
+  /** The Gossip starts broadcasting. Four seconds and everyone will know. */
+  startRumor() {
+    if (this.dead || this.casting) return;
+    this.casting = true;
+    this.castT = this.def.castTime;
+    this.ringPulse = 0;
+    this.game.audio.sfx('phone', { vol: 1.1 });
+    this.game.hud.announce('📞 SHE IS SPREADING IT — SHUT HER UP', 2.4, true);
+  }
+
+  /** Killed mid-call: nobody heard it. This is the whole counterplay. */
+  cancelRumor() {
+    if (!this.casting) return;
+    this.casting = false;
+    this.castT = 0;
+    this.game.hud.toast('📵 the rumor dies with her', 'item');
+  }
+
+  /** The call went through: everyone in earshot is marked and the floor comes. */
+  completeRumor() {
     if (this.dead) return;
     const game = this.game;
+    const R = this.def.rumorRadius;
+    this.casting = false;
     game.audio.sfx('gossip-pop');
     game.effects.burst(this.center, { color: 0x86d86b, n: 26, speed: 5, ttl: 0.9, size: 0.16 });
-    game.effects.ring(this.pos, { color: 0x86d86b, r1: 6.5, dur: 0.6 });
+    game.effects.ring(this.pos, { color: 0x86d86b, r1: R, dur: 0.6 });
     const marked = [];
     for (const t of game.livePlayers()) {
-      if (dist2D(t.pos, this.pos) < 6.5) {
+      if (dist2D(t.pos, this.pos) < R) {
         t.gooT = t.gooResist ? 4 : 8;   // noise-cancelling headphones halve the mark
         marked.push(t);
         if (t === game.player) game.hud.setGoo(true);
       }
     }
     game.director?.onGossipPop(marked.length ? marked : [this.target].filter(Boolean));
-    this.die(true);
+    // she survives her own phone call — she has more calls to make
+    this.attackCd = this.def.recastCd;
+  }
+
+  /** The Micromanager puts a meeting in your calendar. */
+  scheduleMeeting(target) {
+    if (this.dead || target.dead) return;
+    target.meetingT = this.def.scheduleTime;
+    target.meetingBy = this;
+    this.lastPing = null;
+    this.attackCd = 3;
+    this.game.audio.sfx('phone', { vol: 0.7 });
+    if (target === this.game.player) {
+      this.game.hud.toast('📅 MEETING SCHEDULED — break his line of sight', 'warn');
+    }
+  }
+
+  /**
+   * The Auditor's demand cycle. Compliance is measured off the run kill count,
+   * so the demand is always something you were probably doing anyway — the
+   * question is whether you do it FAST enough while he is walking at you.
+   */
+  updateAudit(dt) {
+    const game = this.game;
+    const def = this.def;
+    this.findings = this.findings ?? 0;
+    if (this.demandTarget != null) {
+      this.demandT -= dt;
+      if (game.stats.kills >= this.demandTarget) {
+        // met: he has to accept the paperwork, and stands there doing it
+        this.demandTarget = null;
+        this.stunT = Math.max(this.stunT, 2.2);
+        this.auditT = 6; this.auditPower = 0.35;      // and takes more while he reads
+        game.hud.announce('🧾 COMPLIANCE ACCEPTED — HE IS READING IT', 2.2, true);
+        game.audio.sfx('buy');
+        game.effects.ring(this.pos, { color: 0x58e07c, r1: 5, dur: 0.5 });
+      } else if (this.demandT <= 0) {
+        // missed: a finding against you, and he gets worse
+        this.demandTarget = null;
+        if (this.findings < def.maxFindings) {
+          this.findings++;
+          this.dmg *= 1 + def.findingDmg;
+          this.speedMult = (this.speedMult ?? 1) * (1 + def.findingSpeed);
+          game.hud.announce(`🧾 FINDING #${this.findings} FILED AGAINST YOU`, 2.4, true);
+          game.audio.sfx('alarm', { vol: 0.7 });
+          game.effects.ring(this.pos, { color: 0xff4d5a, r1: 5, dur: 0.5 });
+        }
+      }
+      return;
+    }
+    this.demandNext = (this.demandNext ?? 4) - dt;
+    if (this.demandNext > 0) return;
+    this.demandNext = def.demandEvery;
+    this.demandTarget = game.stats.kills + def.demandKills;
+    this.demandT = def.demandEvery * 0.62;
+    game.hud.announce(`🧾 AUDIT DEMAND — ${def.demandKills} TERMINATIONS, ${Math.round(this.demandT)}s`, 2.6, true);
+    game.audio.sfx('ui2', { vol: 0.9 });
   }
 
   provoke(target) {
@@ -1297,7 +1429,7 @@ export class Enemy {
     this.stateT = 1.1;
     this.provoker = target;
     this.game.audio.sfx('karen-scream');
-    this.game.hud.announce('KAREN IS SPEAKING TO THE MANAGER', 2.2, true);
+    this.game.hud.announce('KAREN GOT IT ON VIDEO', 2.2, true);
     this.game.audio.setMood('boss');
     // arms uncross
     if (this.parts.armL) { this.parts.armL.rotation.z = 0; this.parts.armR.rotation.z = 0; }
@@ -1310,24 +1442,15 @@ export class Enemy {
     this.die(true, { silent: true, noDrops: true });
   }
 
-  onDetached(hurt) {
-    this.state = 'flee';
-    this.stateT = 2.2;
-    this.latchedTo = null;
-    this.detachCd = 6;
-    this.pos.y = 0;
-    if (hurt) this.game.damageEnemy(this, this.maxHp * 0.15, { silent: false });
-    this.kb.set(rand(-6, 6), 0, rand(-6, 6));
-  }
-
   die(instant = false, { silent = false, noDrops = false } = {}) {
     if (this.dead) return;
     this.dead = true;
     this.deathT = 0;
     if (this.tetherT > 0) this.endTether();
-    if (this.latchedTo) {
-      const t = this.latchedTo;
-      if (t.latch === this) { t.latch = null; this.game.hud.setLatch(false); }
+    // killing the special is the counterplay: both of these die with him
+    this.cancelRumor();
+    for (const t of this.game.livePlayers()) {
+      if (t.meetingBy === this) t.cancelMeeting?.(false);
     }
     if (!silent) this.game.audio.sfx('kill', { vol: this.def.big ? 1.2 : 0.7 });
     // LEGO TIME: the body detaches into tumbling pieces
@@ -1355,19 +1478,38 @@ export class Enemy {
     this.strikeAnim = Math.max(0, (this.strikeAnim ?? 0) - dt);
 
     const p = this.parts;
-    const moving = this.state !== 'idle' && this.state !== 'latched';
+    const moving = this.state !== 'idle';
     switch (this.key) {
       case 'paperling': {
         const hop = Math.abs(Math.sin(this.animT * 9));
         this.mesh.position.y = this.pos.y + hop * 0.22;
         if (p.legL) { p.legL.rotation.x = Math.sin(this.animT * 9) * 0.7; p.legR.rotation.x = -Math.sin(this.animT * 9) * 0.7; }
+        // the stack sways with each hop and the loose top sheet flaps like a jaw
+        if (p.body) p.body.rotation.z = Math.sin(this.animT * 9) * 0.09;
+        if (p.topSheet) p.topSheet.rotation.x = -hop * 0.5;
         break;
       }
       case 'drone': case 'gossip': case 'complainer': {
         if (p.person) {
-          if (moving) animateWalk(p, this.animT, 0.8, { zombie: this.key === 'drone' });
+          // the drone's phone-check lull: he stops dead and reads it
+          const lulling = (this.lullT ?? 0) > 0;
+          if (moving && !lulling) animateWalk(p, this.animT, 0.8, { zombie: this.key === 'drone' });
+          if (lulling) {
+            p.armR.rotation.x = -1.75;
+            p.head.rotation.x = 0.42;
+          } else if (this.key === 'drone') {
+            p.head.rotation.x = 0;
+          }
           if (this.windupT > 0 || this.strikeAnim > 0) p.armR.rotation.x = -2.4;
-          else if (this.key === 'gossip') p.armR.rotation.x = -1.9;
+          // the Gossip has the phone to her ear the whole time, and leans into
+          // it while the call is actually going out
+          else if (this.key === 'gossip') {
+            p.armR.rotation.x = -1.9;
+            if (this.casting) {
+              p.torso.rotation.x = 0.18 + Math.sin(this.animT * 9) * 0.05;
+              this.mesh.position.y = this.pos.y + Math.abs(Math.sin(this.animT * 12)) * 0.04;
+            } else p.torso.rotation.x = 0;
+          }
         }
         break;
       }
@@ -1384,10 +1526,17 @@ export class Enemy {
         break;
       }
       case 'micromanager': {
-        if (p.person && this.state !== 'latched') animateWalk(p, this.animT * 1.4, 1);
-        if (this.state === 'latched') {
-          p.legL.rotation.x = -1.4; p.legR.rotation.x = -1.4;
-          p.armL.rotation.x = -2.2; p.armR.rotation.x = -2.2;
+        if (p.person) {
+          animateWalk(p, this.animT * 1.4, 1);
+          // while a meeting is on the clock he holds the tablet up and points
+          // at you with it — the tell that the countdown belongs to HIM
+          const booking = this.game.player?.meetingBy === this && this.game.player.meetingT > 0;
+          if (booking) {
+            p.armL.rotation.x = -1.5;
+            p.armR.rotation.x = -2.1;
+          } else if (this.windupT > 0 || this.strikeAnim > 0) {
+            p.armR.rotation.x = -2.4;
+          }
         }
         break;
       }
@@ -1397,6 +1546,13 @@ export class Enemy {
           else if (this.state === 'screaming') {
             p.armL.rotation.x = -2.6; p.armR.rotation.x = -2.6;
             this.mesh.position.y = this.pos.y + Math.abs(Math.sin(this.animT * 22)) * 0.08;
+          } else if (this.provokeT > 0) {
+            // FILMING: phone up, both hands, framing you. The arms coming up is
+            // the warning that you are already in the shot.
+            poseIdle(p, this.animT);
+            p.armL.rotation.x = -1.85; p.armL.rotation.z = 0.22;
+            p.armR.rotation.x = -1.95; p.armR.rotation.z = -0.22;
+            if (p.recLight) p.recLight.material.emissiveIntensity = 1.2 + Math.abs(Math.sin(this.animT * 6)) * 2.4;
           } else poseIdle(p, this.animT);
         }
         break;
@@ -1405,6 +1561,8 @@ export class Enemy {
         if (p.person) {
           animateWalk(p, this.animT * 0.7, moving ? 0.8 : 0);
           if (this.windupT > 0) { p.armL.rotation.x = -2.8; p.armR.rotation.x = -2.8; }
+          // a demand on the clock: the ledger comes up and he reads from it
+          else if (this.demandTarget != null) p.armR.rotation.x = -1.6;
         }
         break;
       }

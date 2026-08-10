@@ -809,7 +809,7 @@ export class SquadPositioner {
 
     // Escape reaction. A bot that dashes out of a Mediator tether on the exact
     // frame it lands is an aimbot with legs; a human takes ~0.2 s to notice.
-    const pinned = !!(this.bot.tether || this.bot.latch);
+    const pinned = !!(this.bot.tether || this.bot.bookedT > 0);
     if (pinned && !this._wasPinned) {
       this._escapeT = SQUAD_TUNE.escapeReactMin
         + Math.random() * (SQUAD_TUNE.escapeReactMax - SQUAD_TUNE.escapeReactMin);
@@ -838,8 +838,8 @@ export class SquadPositioner {
 
   /**
    * Dash policy. The dash is the universal panic button — it clears stunT,
-   * detaches a Micromanager latch and cuts a Mediator tether — and it has a
-   * 3.6 s cooldown. A bot that burns it as a movement key is both obviously
+   * walks out of a Micromanager's meeting and cuts a Mediator tether — and it
+   * has a 3.6 s cooldown. A bot that burns it as a movement key is both obviously
    * inhuman AND dashless the moment it actually needs it, so movement dashes are
    * only allowed when nothing dangerous is nearby.
    */
@@ -849,7 +849,7 @@ export class SquadPositioner {
     if (this.bot.shockT > 0) return false;          // shock disables the dash entirely
 
     // escape: pinned, and a plausible human reaction time has elapsed
-    if ((this.bot.tether || this.bot.latch) && this._escapeT <= 0) return true;
+    if ((this.bot.tether || this.bot.bookedT > 0) && this._escapeT <= 0) return true;
 
     // movement: closing a real gap, and only when the dash is not needed for
     // defence in the next few seconds

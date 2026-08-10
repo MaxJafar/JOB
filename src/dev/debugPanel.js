@@ -166,6 +166,7 @@ export class DebugPanel {
       options: FLOORS.map((f, i) => ({ text: `${i}: ${f.name}`, value: i })),
     });
     flow.addButton({ title: 'Warp to floor' }).on('click', () => this.warpToFloor(s.gotoFloor));
+    flow.addButton({ title: 'Enter SANDBOX floor' }).on('click', () => g.enterSandbox?.());
     flow.addBinding(s, 'asClass', {
       label: 'class',
       options: CLASSES.map((c) => ({ text: c.name ?? c.key, value: c.key })),

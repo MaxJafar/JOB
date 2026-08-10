@@ -621,8 +621,8 @@ const FALLBACK_DOCTRINE = BOT_DOCTRINE.intern;
 // teammate is to take pressure off the person holding the mouse.
 export const THREAT_BASE = {
   karen: -Infinity, // see karenIsUntouchable() — never, under any circumstance
-  gossip: 100, // pops at 3 m and goo-marks the whole party
-  micromanager: 95, // rides the human and halves their speed
+  gossip: 100, // a 4 s rumor call that ends in a floor-wide horde
+  micromanager: 95, // books a meeting that roots whoever it lands on
   streamer: 90, // marks everyone at 22 m AND queues a horde
   motivator: 85, // rally makes roombas outrun a sprinting janitor
   sysadmin: 80, // 5 m shock field, and shock removes the dash
@@ -1083,14 +1083,17 @@ export function scoreThreat(game, bot, e, c = null, withLos = true) {
   // --- urgency multipliers --------------------------------------------------
   switch (e.key) {
     case 'gossip':
-      // It pops at 3 m from its target and goo-marks everyone within 6.5 m.
-      // Inside 6 m of anybody it is already a failure in progress.
-      if (e.target && dist2(e.pos, e.target.pos) < 6) s *= 2;
+      // The rumor call is a 4s cast that ends in a floor-wide horde, and
+      // killing her mid-call cancels it outright. Nothing else on the floor is
+      // worth shooting while that phone is up.
+      if (e.casting) s *= 4;
       break;
     case 'micromanager':
-      if (e.latchedTo === game?.player) s *= 3;
-      else if (e.latchedTo) s *= 2;
-      else if (e.state === 'pounce') s *= 1.6;
+      // A booked meeting is a countdown someone is losing. Killing him clears
+      // it, so he is worth dropping everything for — most of all when the
+      // countdown belongs to the human.
+      if (game?.player?.meetingBy === e && game.player.meetingT > 0) s *= 3;
+      else if (e.game?.livePlayers?.().some((p) => p.meetingBy === e && p.meetingT > 0)) s *= 2;
       break;
     case 'sysadmin':
       // strikeAnim is set the frame the 0.9 s EMP telegraph is drawn.

@@ -1,0 +1,75 @@
+{
+  "defs": {
+    "paperling": { "name": "Paperling", "hp": 16, "dmg": 7, "speed": 6.8, "radius": 0.42, "centerY": 0.45, "xp": 2, "money": 4, "credit": 5, "ai": "melee", "attackRange": 1.5, "attackCd": 1.1, "windup": 0.3, "burst": { "run": 0.55, "rest": 0.3, "boost": 1.45 } },
+    "drone": { "name": "Cubicle Drone", "hp": 46, "dmg": 12, "speed": 3.8, "radius": 0.5, "centerY": 1.0, "xp": 4, "money": 7, "credit": 9, "ai": "melee", "attackRange": 1.7, "attackCd": 1.4, "windup": 0.42, "lull": { "every": 7, "dur": 1.1 } },
+    "printer": { "name": "Rogue Printer", "hp": 70, "dmg": 9, "speed": 2.4, "radius": 0.65, "centerY": 0.6, "xp": 6, "money": 10, "credit": 13, "ai": "ranged", "rangeMin": 8, "rangeMax": 19, "volley": 3, "volleyCd": 2.7, "projSpeed": 17 },
+    "roomba": { "name": "Roomba-C4", "hp": 24, "dmg": 27, "speed": 8.2, "radius": 0.45, "centerY": 0.2, "xp": 5, "money": 8, "credit": 11, "ai": "kamikaze", "fuse": 0.55, "aoe": 3.4 },
+    "quad": { "name": "Delivery Drone", "hp": 38, "dmg": 9, "speed": 5.2, "radius": 0.5, "centerY": 0, "xp": 6, "money": 10, "credit": 14, "ai": "flyer", "hover": 3.4, "rangeMin": 6, "rangeMax": 15, "volleyCd": 2.2, "projSpeed": 20 },
+    "copier": { "name": "Copier Golem", "hp": 260, "dmg": 21, "speed": 2.8, "radius": 0.95, "centerY": 1.2, "xp": 18, "money": 28, "credit": 30, "ai": "melee", "attackRange": 2.4, "attackCd": 1.9, "windup": 0.6, "big": true },
+    "gossip": { "name": "The Gossip", "hp": 80, "dmg": 0, "speed": 3.2, "radius": 0.6, "centerY": 1.0, "xp": 10, "money": 16, "credit": 20, "ai": "rumor", "special": true, "castTime": 4, "castRange": 12, "rumorRadius": 7.5, "recastCd": 9 },
+    "complainer": { "name": "The Complainer", "hp": 95, "dmg": 9, "speed": 3.5, "radius": 0.55, "centerY": 1.0, "xp": 12, "money": 18, "credit": 24, "ai": "ticketer", "rangeMin": 9, "rangeMax": 18, "volleyCd": 4.2, "special": true, "ticketRadius": 4.6, "ticketTtl": 14, "ticketCap": 3 },
+    "micromanager": { "name": "The Micromanager", "hp": 65, "dmg": 6, "speed": 6.4, "radius": 0.45, "centerY": 0.8, "xp": 14, "money": 20, "credit": 26, "ai": "scheduler", "special": true, "scheduleRange": 16, "cancelRange": 21, "orbitRange": 9, "scheduleTime": 3, "bookTime": 1.2, "attackRange": 2.0, "attackCd": 1.6, "windup": 0.35 },
+    "motivator": { "name": "The Motivator", "hp": 90, "dmg": 0, "speed": 3.8, "radius": 0.5, "centerY": 1.0, "xp": 14, "money": 22, "credit": 22, "ai": "rally", "special": true },
+    "karen": { "name": "KAREN", "hp": 950, "dmg": 46, "speed": 8.6, "radius": 0.5, "centerY": 1.0, "xp": 90, "money": 150, "credit": 0, "ai": "karen", "rare": true, "filmRange": 9, "filmTime": 2.2 },
+    "auditor": { "name": "THE AUDITOR", "hp": 1600, "dmg": 32, "speed": 3.6, "radius": 1.15, "centerY": 1.6, "xp": 130, "money": 240, "credit": 110, "ai": "auditor", "rare": true, "big": true, "demandEvery": 17, "demandKills": 5, "maxFindings": 4, "findingDmg": 0.2, "findingSpeed": 0.08 },
+
+    "hrrep": {
+      "name": "Talent Partner", "hp": 125, "dmg": 11, "speed": 2.4, "radius": 0.8, "centerY": 1.0,
+      "xp": 7, "money": 12, "credit": 13, "ai": "stunner", "attackRange": 2.2, "attackCd": 1.8,
+      "windup": 0.5, "stun": 0.85, "crowd": 0.17, "biome": "hr"
+    },
+    "intake": {
+      "name": "Intake Coordinator", "hp": 78, "dmg": 9, "speed": 3.2, "radius": 0.55, "centerY": 1.0,
+      "xp": 6, "money": 10, "credit": 12, "ai": "ranged", "rangeMin": 7, "rangeMax": 17, "volley": 2,
+      "volleyCd": 2.9, "projSpeed": 16, "projKind": "form", "slowOnHit": 2.4, "biome": "hr"
+    },
+    "mediator": {
+      "name": "The Mediator", "hp": 160, "dmg": 9, "speed": 3.0, "radius": 0.6, "centerY": 1.0,
+      "xp": 16, "money": 26, "credit": 28, "ai": "tether", "special": true,
+      "tetherRange": 17, "tetherPull": 5.4, "tetherTime": 3.4, "biome": "hr"
+    },
+
+    "itguy": {
+      "name": "Field Technician", "hp": 64, "dmg": 9, "speed": 4.4, "radius": 0.5, "centerY": 1.0,
+      "xp": 6, "money": 11, "credit": 12, "ai": "tesla", "arcRange": 10, "attackCd": 2.4,
+      "windup": 0.5, "shock": 1.5, "biome": "it"
+    },
+    "pylon": {
+      "name": "Server Rack", "hp": 250, "dmg": 8, "speed": 1.7, "radius": 0.9, "centerY": 1.1,
+      "xp": 14, "money": 22, "credit": 26, "ai": "aura", "auraRadius": 4.4, "auraCd": 0.6, "big": true, "biome": "it"
+    },
+    "sysadmin": {
+      "name": "The Sysadmin", "hp": 170, "dmg": 10, "speed": 3.6, "radius": 0.55, "centerY": 1.0,
+      "xp": 18, "money": 28, "credit": 32, "ai": "emp", "special": true, "empRange": 20, "biome": "it"
+    },
+
+    "influencer": {
+      "name": "Brand Intern", "hp": 13, "dmg": 6, "speed": 9.4, "radius": 0.36, "centerY": 0.82,
+      "xp": 2, "money": 4, "credit": 4, "ai": "screamer", "attackRange": 1.5, "attackCd": 0.85,
+      "windup": 0.2, "screamCd": 6, "throwCd": 5, "biome": "marketing"
+    },
+    "growth": {
+      "name": "Growth Hacker", "hp": 50, "dmg": 10, "speed": 6.0, "radius": 0.46, "centerY": 1.0,
+      "xp": 5, "money": 9, "credit": 10, "ai": "ranged", "rangeMin": 6, "rangeMax": 15, "volley": 3,
+      "volleyCd": 2.2, "projSpeed": 21, "projKind": "brand", "biome": "marketing"
+    },
+    "streamer": {
+      "name": "The Live-Streamer", "hp": 145, "dmg": 0, "speed": 4.4, "radius": 0.55, "centerY": 1.0,
+      "xp": 18, "money": 30, "credit": 30, "ai": "stream", "special": true, "biome": "marketing"
+    },
+
+    "closer": {
+      "name": "Junior Closer", "hp": 95, "dmg": 19, "speed": 5.0, "radius": 0.5, "centerY": 1.0,
+      "xp": 8, "money": 14, "credit": 16, "ai": "charger", "chargeRange": 15, "attackCd": 4.2, "biome": "sales"
+    },
+
+    "dummy": {
+      "name": "Crash-Test Temp", "hp": 220, "dmg": 0, "speed": 0, "radius": 0.5, "centerY": 1.0,
+      "xp": 0, "money": 0, "credit": 0, "ai": "melee", "attackRange": 0, "attackCd": 999, "windup": 9
+    }
+  },
+  "eliteMods": {
+    "overtime": { "name": "OVERTIME", "tint": "0xff5a2d", "hpMult": 1.7, "dmgMult": 1.3, "speedMult": 1.45, "costMult": 4 },
+    "synergy": { "name": "SYNERGIZED", "tint": "0x38e1ff", "hpMult": 2.6, "dmgMult": 1.1, "speedMult": 1.0, "costMult": 4.5, "deathNova": true }
+  }
+}

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Balance feedback / "this floor feels bad"
+    url: https://github.com/MaxJafar/JOB/discussions
+    about: Feel and pacing notes are better as a discussion than an issue. Bring the debug panel's copy-as-JSON output if you've been tuning.
+  - name: How do I build/hack on this?
+    url: https://github.com/MaxJafar/JOB/blob/master/CONTRIBUTING.md
+    about: Setup, the three architectural rules, and how to add an enemy or module.

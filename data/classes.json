@@ -1,0 +1,52 @@
+{
+  "intern": {
+    "hp": 115, "speed": 7.4, "damage": 13, "xpBonus": 1.15,
+    "primary": { "cd": 0.21, "mag": 14, "reload": 1.0 },
+    "secondary": { "cd": 5 }
+  },
+  "janitor": {
+    "hp": 170, "speed": 6.8, "damage": 30,
+    "primary": { "cd": 0.52 },
+    "secondary": { "cd": 0 }
+  },
+  "accountant": {
+    "hp": 100, "speed": 7.2, "damage": 6, "moneyBonus": 1.25,
+    "primary": { "cd": 0.08, "mag": 48, "reload": 1.45 },
+    "secondary": { "cd": 11 }
+  },
+  "hr": {
+    "hp": 105, "speed": 7.3, "damage": 12, "damageTakenMult": 0.9,
+    "primary": { "cd": 0.3, "mag": 9, "reload": 1.2 },
+    "secondary": { "cd": 10 }
+  },
+  "it": {
+    "hp": 115, "speed": 7.1, "damage": 5.5, "regenBonus": 1.2,
+    "primary": { "cd": 0.09 },
+    "secondary": { "cd": 14 }
+  },
+  "sales": {
+    "hp": 108, "speed": 8.0, "damage": 12, "sprintBonus": 1.08,
+    "primary": { "cd": 0.27, "mag": 16, "reload": 1.1 },
+    "secondary": { "cd": 8 }
+  },
+  "marketing": {
+    "hp": 96, "speed": 8.6, "damage": 8,
+    "primary": { "cd": 0.055 },
+    "secondary": { "cd": 7 }
+  },
+  "brawler": {
+    "hp": 235, "speed": 6.2, "damage": 26, "knockbackResist": 0.65,
+    "primary": { "cd": 0.34 },
+    "secondary": { "cd": 9 }
+  },
+  "barista": {
+    "hp": 118, "speed": 7.3, "damage": 9,
+    "primary": { "cd": 0.06 },
+    "secondary": { "cd": 6 }
+  },
+  "analyst": {
+    "hp": 92, "speed": 7.0, "damage": 22, "critDamageBonus": 1,
+    "primary": { "cd": 0.18, "mag": 6, "reload": 1.6, "charge": 0.75 },
+    "secondary": { "cd": 9 }
+  }
+}

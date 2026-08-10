@@ -6,65 +6,36 @@ only for deterministic RGBA derivatives and the generated asset ledger.
 
 from __future__ import annotations
 
-import hashlib
 import html
-import re
-import shutil
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
+
+from _asset_lib import (
+    ASSET_ROOT,
+    CYAN,
+    DIM,
+    GOLD,
+    GREEN,
+    LINE,
+    MAGENTA,
+    RED,
+    SURFACE,
+    SURFACE_DARK,
+    TEXT,
+    clipped_points,
+    fit_font,
+    font,
+    poly,
+    rgba,
+    save_svg_png,
+    svg_doc,
+    sync_public_assets,
+    update_ledger,
+)
 
 
 VERSION = "hud-assets-v1"
-ROOT = Path(__file__).resolve().parents[1]
-ASSET_ROOT = ROOT / "assets" / "ui"
-PUBLIC_ASSET_ROOT = ROOT / "public" / "assets" / "ui"
-LEDGER = ROOT / "docs" / "art" / "ASSET_LEDGER.md"
-
-GOLD = "#FFD23F"
-CYAN = "#38E1FF"
-RED = "#FF4D5A"
-GREEN = "#58E07C"
-MAGENTA = "#FF4FA3"
-SURFACE_DARK = "#101420"
-SURFACE = "#2A3242"
-TEXT = "#EEF2F6"
-DIM = "#9AA7B5"
-LINE = "#6B7483"
-
-
-def rgb(value: str) -> tuple[int, int, int]:
-    value = value.lstrip("#")
-    return tuple(int(value[i : i + 2], 16) for i in (0, 2, 4))
-
-
-def rgba(value: str, alpha: int = 255) -> tuple[int, int, int, int]:
-    return (*rgb(value), alpha)
-
-
-def ensure(path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-
-def write_text(path: Path, content: str) -> None:
-    ensure(path)
-    path.write_text(content, encoding="utf-8", newline="\n")
-
-
-def svg_doc(width: int, height: int, body: str, extra: str = "") -> str:
-    return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
-        f'viewBox="0 0 {width} {height}" fill="none" shape-rendering="geometricPrecision">'
-        f"{extra}{body}</svg>\n"
-    )
-
-
-def poly(points: list[tuple[float, float]]) -> str:
-    return " ".join(f"{x:g},{y:g}" for x, y in points)
-
-
-def clipped_points(w: int, h: int, clip: int = 16) -> list[tuple[int, int]]:
-    return [(0, 0), (w - clip, 0), (w, clip), (w, h), (0, h)]
 
 
 def svg_panel(w: int, h: int, fill: str, edge: str, accent: str, clip: int = 16) -> str:
@@ -300,37 +271,13 @@ def svg_combo_sheet() -> str:
     return svg_doc(cell_w * len(glyphs), cell_h * len(rows), body)
 
 
-def font(path: str, size: int) -> ImageFont.FreeTypeFont:
-    candidates = [
-        Path(path),
-        Path("C:/Windows/Fonts/bahnschrift.ttf"),
-        Path("C:/Windows/Fonts/arialbd.ttf"),
-        Path("C:/Windows/Fonts/consolab.ttf"),
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return ImageFont.truetype(str(candidate), size)
-    return ImageFont.load_default()
-
-
-def fit_font(text: str, max_width: int, initial: int, path: str = "C:/Windows/Fonts/bahnschrift.ttf") -> ImageFont.FreeTypeFont:
-    size = initial
-    while size > 10:
-        f = font(path, size)
-        bbox = f.getbbox(text)
-        if bbox[2] - bbox[0] <= max_width:
-            return f
-        size -= 2
-    return font(path, 10)
-
-
 def png_combo_sheet() -> Image.Image:
     cell_w, cell_h = 64, 80
     im = Image.new("RGBA", (cell_w * 11, cell_h * 3), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     glyphs = list("0123456789×")
     for row, color in enumerate((TEXT, GOLD, RED)):
-        f = font("C:/Windows/Fonts/bahnschrift.ttf", 54)
+        f = font("display", 54)
         for col, glyph in enumerate(glyphs):
             bbox = d.textbbox((0, 0), glyph, font=f)
             tw = bbox[2] - bbox[0]
@@ -458,10 +405,10 @@ def png_logo(variant: str, badge: bool = False) -> Image.Image:
         p = [(100, 0), (924, 0), (1024, 100), (1024, 924), (924, 1024), (100, 1024), (0, 924), (0, 100)]
         d.polygon(p, fill=rgba(bg, 230), outline=rgba(edge), width=10)
         d.line((116, 180, 908, 180), fill=rgba(edge, 210), width=5); d.line((116, 844, 908, 844), fill=rgba(edge, 210), width=5)
-        f = fit_font("J.O.B.", 800, 300, "C:/Windows/Fonts/arialbd.ttf")
+        f = fit_font("J.O.B.", 800, 300, "legacy_display")
         bbox = d.textbbox((0, 0), "J.O.B.", font=f)
         d.text(((1024 - (bbox[2] - bbox[0])) // 2 - bbox[0], 365 - bbox[1]), "J.O.B.", font=f, fill=rgba(word), stroke_width=3, stroke_fill=rgba(SURFACE_DARK if word != SURFACE_DARK else TEXT))
-        f2 = font("C:/Windows/Fonts/consolab.ttf", 54)
+        f2 = font("legacy_ledger", 54)
         text = "STAMP"
         bbox = d.textbbox((0, 0), text, font=f2)
         d.text(((1024 - (bbox[2] - bbox[0])) // 2 - bbox[0], 675 - bbox[1]), text, font=f2, fill=rgba(edge))
@@ -471,32 +418,14 @@ def png_logo(variant: str, badge: bool = False) -> Image.Image:
     word = {"full": GOLD, "mono-light": TEXT, "mono-dark": SURFACE_DARK}[variant]
     accent = CYAN if variant != "mono-dark" else SURFACE
     tagline = DIM if variant != "mono-dark" else LINE
-    f = fit_font("J.O.B.", 1220, 330, "C:/Windows/Fonts/arialbd.ttf")
+    f = fit_font("J.O.B.", 1220, 330, "legacy_display")
     d.text((48, 52), "J.O.B.", font=f, fill=rgba(word), stroke_width=3, stroke_fill=rgba(SURFACE_DARK if variant != "mono-dark" else TEXT))
     d.line((64, 470, 1240, 470), fill=rgba(accent), width=12); d.line((1280, 470, 1960, 470), fill=rgba(GOLD if variant == "full" else accent), width=4)
     d.line((1500, 410, 1540, 470, 1500, 530), fill=rgba(accent), width=6, joint="curve")
-    f2 = fit_font("JUST OBEY BUSINESS", 1860, 72, "C:/Windows/Fonts/consolab.ttf")
+    f2 = fit_font("JUST OBEY BUSINESS", 1860, 72, "legacy_ledger")
     d.text((76, 530), "JUST OBEY BUSINESS", font=f2, fill=rgba(tagline))
     d.line((80, 650, 460, 650), fill=rgba(accent, 190), width=4); d.line((480, 650, 620, 650), fill=rgba(accent, 190), width=4)
     return im
-
-
-def save_svg_png(rel_stem: str, svg: str, image: Image.Image) -> None:
-    svg_path = ASSET_ROOT / f"{rel_stem}.svg"
-    png_path = ASSET_ROOT / f"{rel_stem}@1x.png"
-    write_text(svg_path, svg)
-    ensure(png_path)
-    image.save(png_path, "PNG", optimize=False)
-
-
-def sync_public_assets() -> None:
-    """Mirror generated assets into Vite's production public directory."""
-    for source in ASSET_ROOT.rglob("*"):
-        if not source.is_file():
-            continue
-        target = PUBLIC_ASSET_ROOT / source.relative_to(ASSET_ROOT)
-        ensure(target)
-        shutil.copy2(source, target)
 
 
 def generate() -> list[Path]:
@@ -609,40 +538,6 @@ def generate() -> list[Path]:
     sync_public_assets()
     update_ledger()
     return outputs
-
-
-def dimensions(path: Path) -> str:
-    if path.suffix.lower() == ".png":
-        with Image.open(path) as im:
-            return f"{im.width}x{im.height}"
-    text = path.read_text(encoding="utf-8")
-    match = re.search(r'<svg[^>]*width="([^"]+)"[^>]*height="([^"]+)"', text)
-    return f"{match.group(1)}x{match.group(2)}" if match else "unknown"
-
-
-def update_ledger() -> None:
-    entries = []
-    for path in sorted(ASSET_ROOT.rglob("*")):
-        if path.suffix.lower() not in {".svg", ".png"}:
-            continue
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()[:12]
-        rel = path.relative_to(ROOT).as_posix()
-        entries.append(f"| `{rel}` | `{dimensions(path)}` | `{digest}` | development_candidate |")
-    table = "\n".join([
-        "| Path | Dimensions | SHA-256 (first 12) | Review |",
-        "| --- | --- | --- | --- |",
-        *entries,
-    ])
-    existing = LEDGER.read_text(encoding="utf-8") if LEDGER.exists() else ""
-    start = "<!-- GENERATED_LEDGER_START -->"
-    end = "<!-- GENERATED_LEDGER_END -->"
-    if start in existing and end in existing:
-        prefix, rest = existing.split(start, 1)
-        _, suffix = rest.split(end, 1)
-        updated = f"{prefix}{start}\n{table}\n{end}{suffix}"
-    else:
-        updated = existing + f"\n{start}\n{table}\n{end}\n"
-    LEDGER.write_text(updated, encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

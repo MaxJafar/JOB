@@ -87,9 +87,10 @@ export class EnemyLOD {
       const e = enemies[i];
       if (e.lodTier === undefined) this.register(e);
 
-      // Bosses, latched specials and anything mid-attack always run hot: an
-      // attack that resolves on a 5 Hz tick is an unfair hit.
-      const forceHot = !this.enabled || e.def?.boss || e.state === 'latched'
+      // Bosses, anything mid-attack and anything mid-cast always run hot: an
+      // attack that resolves on a 5 Hz tick is an unfair hit, and a rumor call
+      // that only ticks at 5 Hz is one you cannot reliably interrupt.
+      const forceHot = !this.enabled || e.def?.boss || e.casting
         || e.windupT > 0 || e.netPuppet;
 
       this.counts[forceHot ? 0 : e.lodTier]++;

@@ -1,0 +1,19 @@
+{
+  "lockdown": {
+    "waves": 3,
+    "firstDelay": 2.2,
+    "interval": 16,
+    "sizeBase": 5,
+    "sizePerCoeff": 3,
+    "sizePerWave": 0.3,
+    "specialFromWave": 2
+  },
+  "horde": {
+    "cap": 26,
+    "table": [
+      { "key": "paperling", "w": 6 },
+      { "key": "drone", "w": 3 },
+      { "key": "roomba", "wLow": 0.4, "wHigh": 1.5, "highAt": 1.8 }
+    ]
+  }
+}

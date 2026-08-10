@@ -1,0 +1,76 @@
+name: Content idea
+description: A new enemy, class, module, floor, item, KPI or event
+labels: ["content"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Content ideas are very welcome. The bar is design intent, not polish —
+        one good sentence about *what it does to the player* beats a spreadsheet
+        of stats.
+
+        Two design rules worth knowing before you write:
+        - **The mob is the mechanic.** Each department kills you a different
+          way. A new enemy should express its floor's idea.
+        - **Passives change rules, not numbers.** "Furniture you break
+          detonates" is a module. "+8% damage" is an item.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of thing is this
+      options:
+        - Enemy
+        - Special (Director-spawned)
+        - Boss / floor lead
+        - Class chassis
+        - Punch-card module (SPECIAL or PASSIVE)
+        - Item / gear / throwable
+        - Floor / department
+        - KPI or floor-wide event
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: pitch
+    attributes:
+      label: The pitch
+      description: One or two sentences. What is it, and what does it do to the player?
+      placeholder: |
+        THE RECRUITER (Sales special) — locks onto one player and starts a
+        countdown. If it finishes, that player is "poached": teleported across
+        the floor, away from the team. Killing it cancels the timer.
+    validations:
+      required: true
+
+  - type: textarea
+    id: counterplay
+    attributes:
+      label: Counterplay
+      description: How does the player beat it, and how do they know to? Nothing should kill you without a telegraph.
+      placeholder: |
+        Audible pitch that rises with the countdown, plus a visible tether.
+        Breaking line of sight pauses it; killing it cancels it outright.
+    validations:
+      required: true
+
+  - type: input
+    id: floor
+    attributes:
+      label: Which floor / class does it belong to
+      placeholder: "SALES — or a new department"
+
+  - type: textarea
+    id: numbers
+    attributes:
+      label: Rough numbers (optional)
+      description: HP, damage, cooldowns. Guesses are fine — balance happens with the debug panel sliders.
+
+  - type: checkboxes
+    id: offer
+    attributes:
+      label: Optional
+      options:
+        - label: I'd like to implement this myself
+          required: false

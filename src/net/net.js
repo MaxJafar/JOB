@@ -10,6 +10,25 @@
 
 import { createTransport } from './transport.js';
 
+/**
+ * The relay is mounted on the same origin that served this page (see
+ * scripts/vite-plugin-lan.js and server.js), so nobody has to type an address:
+ * open the link, and the socket follows it.
+ */
+export function defaultRelayUrl() {
+  if (typeof location === 'undefined') return 'ws://localhost:7071/ws';
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${location.host}/ws`;
+}
+
+/** Live room directory served next to the relay. */
+export async function fetchRooms({ signal } = {}) {
+  const res = await fetch('/api/rooms', { cache: 'no-store', signal });
+  if (!res.ok) throw new Error(`rooms ${res.status}`);
+  const body = await res.json();
+  return Array.isArray(body.rooms) ? body.rooms : [];
+}
+
 // Wire table for enemy kinds: the INDEX is the value on the wire, so new kinds
 // must be APPENDED and existing entries must never be reordered or removed.
 // An unknown index is dropped by applyEnemySnapshot rather than mis-spawned.
@@ -63,7 +82,7 @@ export class NetSession {
         this.game.menus.showLobby();
       } else {
         this.status = t.kind === 'websocket'
-          ? '❌ Could not reach relay. Is `npm run host` running?'
+          ? '❌ Lost the relay on this page’s server. Reload the link and try again.'
           : `❌ ${t.describe()} unavailable.`;
         this.game.menus.showLobby();
       }
@@ -178,6 +197,13 @@ export class NetSession {
       a: 'start', seed, floor: 0, loop: 0,
       roster: this.roster.map((r) => ({ id: r.id, name: r.name, cls: r.cls ?? 'intern' })),
     });
+    this.setRoomState(true);
+  }
+
+  /** Flag the room WAITING vs IN PROGRESS for the LAN browser. Host-only server-side. */
+  setRoomState(inRun) {
+    if (!this.transport?.ready) return;
+    this.transport.send({ t: 'roomstate', inRun });
   }
 
   // ---------- in-run ----------
@@ -211,7 +237,7 @@ export class NetSession {
         +(e.mesh.rotation.y).toFixed(2),
         +(e.hp / e.maxHp).toFixed(3),
         ELITE_KEYS.indexOf(e.elite ?? null),
-        e.state === 'latched' ? 1 : 0,
+        e.casting ? 1 : 0,     // the Gossip mid-rumor: guests must see the tell too
       ]);
     }
     return out;

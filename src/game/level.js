@@ -1,10 +1,13 @@
-// ============ floor generation v3: the tower floor plate ============
-// Every floor is a HUB. A central ELEVATOR CORE holds the only way up; four
-// wings radiate out to the fire stairs on each side of the plate. The team
-// badges in at four different stairwells and has to cut inward through the
-// department to meet in the middle — then hold the core while the elevator is
-// called. Paid side rooms (VAULT, UTILITY, BREAK ROOM) hang off the wings.
-// The penthouse keeps its single executive arena.
+// ============ floor generation v4: the office labyrinth ============
+// Every floor is a big double-loaded office plate: a central ELEVATOR CORE,
+// corridor spines and cross-corridors, and blocks of departments subdivided
+// into rooms with pocket dead-ends — then a seeded set of doorways is SEALED
+// into solid wall (src/game/floorplan.js), so every floor is a different
+// labyrinth with loops, long routes and shortcuts. The team badges in at four
+// edge stairwells and has to navigate inward; the FLOOR LEAD keeps a private
+// office (the LAIR) in an outer corner, meetable long before the elevator
+// call. Paid side rooms (VAULT, UTILITY, BREAK ROOM) hang off the maze behind
+// budget doors. The penthouse keeps its single executive arena.
 import * as THREE from 'three';
 import {
   makeCarpet, makeWindowStrip, makePoster, makeDesk, makeOfficeChair, makeCubicleCluster,
@@ -13,6 +16,7 @@ import {
   makeStairwellDoor, makeCEODesk, makeStatue, makeSodaCan, makeCanvasTexture, box, mat,
 } from './props.js';
 import { makeRng, rngRange, rngInt, rngChoose, resolveCircleAABB, segmentHitsAABB, clamp, dist2D, nextId } from '../core/utils.js';
+import { planFloor, pairKey } from './floorplan.js';
 
 const POSTER_LINES = {
   lobby: ['WELCOME\nTO J.O.B.', 'VISITORS MUST\nSIGN IN', 'NO SOLICITING', 'YOUR CAREER\nSTARTS HERE ▲'],
@@ -27,29 +31,8 @@ const POSTER_LINES = {
 const ROOM_SIGNS = {
   core: 'ELEVATOR CORE', corridor: null, bullpen: 'OPEN OFFICE', conference: 'CONFERENCE CENTER',
   lounge: 'STAFF LOUNGE', records: 'RECORDS', vault: '⚠ RESTRICTED — VAULT',
-  utility: 'FACILITIES', breakroom: 'BREAK ROOM',
+  utility: 'FACILITIES', breakroom: 'BREAK ROOM', lair: '⚠ FLOOR LEAD — PRIVATE OFFICE',
 };
-
-// The four approaches. Each is a corridor + an outer department room whose far
-// wall carries a stairwell — that stairwell is a player start.
-const WINGS = [
-  { key: 'n', ax: 0, az: -1, label: 'NORTH STAIR', side: 'north' },
-  { key: 'e', ax: 1, az: 0, label: 'EAST STAIR', side: 'east' },
-  { key: 's', ax: 0, az: 1, label: 'SOUTH STAIR', side: 'south' },
-  { key: 'w', ax: -1, az: 0, label: 'WEST STAIR', side: 'west' },
-];
-const WING_TYPES = ['bullpen', 'conference', 'lounge', 'records'];
-
-// seeded Fisher-Yates — the four approaches must differ per floor but stay
-// reproducible from the floor seed so co-op guests build the same plate
-function shuffled(rng, arr) {
-  const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
 
 export const CEIL_H = 4.3;
 const WALL_H = 4.6;
@@ -88,65 +71,19 @@ export class Level {
   // ================= layout =================
   build() {
     const def = this.def;
+    if (def.sandbox) { this.buildSandbox(); return; }
     if (def.isFinal) { this.buildPenthouse(); return; }
-    const rng = this.rng;
     const P = def.palette;
 
-    // ---- the core: room 0, dead centre, holds the elevator shaft ----
-    const coreW = rngRange(rng, 25, 29), coreD = rngRange(rng, 25, 29);
-    const core = {
-      id: 0, type: 'core',
-      x0: -coreW / 2, x1: coreW / 2, z0: -coreD / 2, z1: coreD / 2,
-      cx: 0, cz: 0, discovered: false, spine: true,
-    };
-    this.rooms.push(core);
-    this.coreRoom = core;
-    // `arenaRoom` is the name the director and the seal code already use for
-    // "the room the lockdown happens in". On a hub floor that is the core.
-    this.arenaRoom = core;
-
-    // ---- four wings: corridor out to a department room with a stairwell ----
-    // The room rectangles stay axis-aligned so buildRoomShell's neighbour
-    // detection (which matches shared edges exactly) keeps working unchanged.
-    const wingTypes = shuffled(rng, WING_TYPES);
-    this.wings = [];
-    for (let i = 0; i < WINGS.length; i++) {
-      const W = WINGS[i];
-      const horizontal = W.ax !== 0;                       // wing runs along x?
-      const coreHalf = horizontal ? coreW / 2 : coreD / 2;
-      const corrLen = rngRange(rng, 9, 13);
-      const corrWide = rngRange(rng, 6, 7.2);
-      const roomDeep = rngRange(rng, 15, 19);
-      const roomWide = rngRange(rng, 21, 26);
-
-      const corrCentre = coreHalf + corrLen / 2;
-      const corridor = this.pushRoom('corridor', {
-        cx: W.ax * corrCentre, cz: W.az * corrCentre,
-        w: horizontal ? corrLen : corrWide,
-        d: horizontal ? corrWide : corrLen,
-        wing: W.key,
-      });
-      const roomCentre = coreHalf + corrLen + roomDeep / 2;
-      const outer = this.pushRoom(wingTypes[i], {
-        cx: W.ax * roomCentre, cz: W.az * roomCentre,
-        w: horizontal ? roomDeep : roomWide,
-        d: horizontal ? roomWide : roomDeep,
-        wing: W.key, arrivalSide: W.side, stairLabel: W.label,
-      });
-      this.wings.push({ ...W, corridor, outer });
-    }
-
-    // ---- side rooms (behind paid doors) hang off two random wings ----
-    const hosts = shuffled(rng, this.wings.map((w) => w.outer));
-    const sideDefs = [
-      { type: 'vault', host: hosts[0], cost: 60 },
-      { type: 'utility', host: hosts[1], cost: 40 },
-    ];
-    if (rng() < 0.55 && hosts[2]) sideDefs.push({ type: 'breakroom', host: hosts[2], cost: 25 });
-    for (const sd of sideDefs) {
-      if (!sd.host) continue;
-      this.pushSideRoom(sd.host, sd.type, sd.cost);
-    }
+    // ---- plan first (pure + seeded), then pour the concrete ----
+    const plan = planFloor(this.seed, def);
+    this.rooms = plan.rooms.map((r) => ({ ...r, discovered: false }));
+    this.sealedPairs = plan.sealed;
+    this.coreRoom = this.rooms[plan.coreId];
+    // `arenaRoom` is what the director and the seal code call "the room the
+    // lockdown happens in" — on a labyrinth floor that is still the core.
+    this.arenaRoom = this.coreRoom;
+    this.lairRoom = plan.lairId != null ? this.rooms[plan.lairId] : null;
 
     // ---- envelope bounds ----
     let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
@@ -175,7 +112,8 @@ export class Level {
 
     // ---- the elevator core, and the stairwells the team badges in at ----
     this.elevator = this.placeCoreElevator(P);
-    this.playerSpawns = this.wings.map((w) => this.placeStairwell(w, P));
+    this.playerSpawns = plan.stairs.map((s) => this.placeStairwell(
+      { key: s.key, ax: s.ax, az: s.az, outer: this.rooms[s.roomId] }, P));
 
     // ---- karen lurks in a corridor ----
     if (this.rng() < def.karenChance) {
@@ -187,47 +125,6 @@ export class Level {
           clamp(c.cz, c.z0 + 1.5, c.z1 - 1.5));
       }
     }
-  }
-
-  pushRoom(type, { cx, cz, w, d, ...extra }) {
-    const room = {
-      id: this.rooms.length, type,
-      x0: cx - w / 2, x1: cx + w / 2, z0: cz - d / 2, z1: cz + d / 2,
-      cx, cz, discovered: false, spine: true, ...extra,
-    };
-    this.rooms.push(room);
-    return room;
-  }
-
-  /**
-   * Bolt a paid side room onto one of a host room's long walls. Picks the wall
-   * facing away from the core so the door is never buried in a corridor mouth.
-   */
-  pushSideRoom(host, type, cost) {
-    const rng = this.rng;
-    const hostW = host.x1 - host.x0, hostD = host.z1 - host.z0;
-    // attach on the axis perpendicular to the wing, so the wing corridor is clear
-    const onX = Math.abs(host.cz) > Math.abs(host.cx);   // north/south wing → attach east/west
-    const size = rngRange(rng, 8.5, 10.5);
-    const along = Math.min(rngRange(rng, 8.5, 10.5), (onX ? hostD : hostW) - 2.5);
-    if (along < 6) return null;
-    const side = rng() < 0.5 ? -1 : 1;
-    const room = onX
-      ? {
-        x0: side < 0 ? host.x0 - size : host.x1, x1: side < 0 ? host.x0 : host.x1 + size,
-        z0: host.cz - along / 2, z1: host.cz + along / 2,
-        cx: side < 0 ? host.x0 - size / 2 : host.x1 + size / 2, cz: host.cz,
-      }
-      : {
-        x0: host.cx - along / 2, x1: host.cx + along / 2,
-        z0: side < 0 ? host.z0 - size : host.z1, z1: side < 0 ? host.z0 : host.z1 + size,
-        cx: host.cx, cz: side < 0 ? host.z0 - size / 2 : host.z1 + size / 2,
-      };
-    this.rooms.push({
-      id: this.rooms.length, type, ...room,
-      discovered: false, spine: false, host: host.id, paidCost: cost, side,
-    });
-    return room;
   }
 
   // Build walls/floor/ceiling for one room, carving door gaps toward neighbors.
@@ -259,8 +156,9 @@ export class Level {
     this.disposables.push(ceilTex, ceil.material);
 
     // accent room light (no shadows — cheap)
-    if (room.type === 'vault' || room.type === 'utility' || room.type === 'breakroom' || room.type === 'arena') {
-      const tint = room.type === 'vault' ? 0xffd23f : room.type === 'utility' ? 0x38e1ff : room.type === 'breakroom' ? 0x58e07c : 0xff9b2d;
+    if (room.type === 'vault' || room.type === 'utility' || room.type === 'breakroom' || room.type === 'lair' || room.type === 'arena') {
+      const tint = room.type === 'vault' ? 0xffd23f : room.type === 'utility' ? 0x38e1ff
+        : room.type === 'breakroom' ? 0x58e07c : room.type === 'lair' ? 0xff4d5a : 0xff9b2d;
       const pt = new THREE.PointLight(tint, room.type === 'arena' ? 12 : 20, Math.max(w, d) * 1.4, 1.8);
       pt.position.set(room.cx, CEIL_H - 0.8, room.cz);
       this.group.add(pt);
@@ -310,6 +208,8 @@ export class Level {
       paidRoom: other.paidCost && other.host === room.id ? other : (room.paidCost && room.host === other.id ? room : null),
       // every core mouth gets a shutter — this is what slams down for the holdout
       arenaEdge: room.type === 'core' || other.type === 'core',
+      // labyrinth cut (floorplan.js): sealed adjacencies get solid wall, no door
+      sealed: this.sealedPairs?.has(pairKey(room.id, other.id)) ?? false,
     };
     return gap;
   }
@@ -325,6 +225,10 @@ export class Level {
     // its own wall OUTSIDE the overlap — otherwise wider rooms get holes.
     const cuts = [];   // intervals of this wall we must NOT build
     for (const g of gapList) {
+      if (g.sealed) {                                                 // labyrinth cut: solid wall
+        if (!g.builder) cuts.push([g.lo, g.hi]);                      // the owner builds straight through
+        continue;
+      }
       if (g.builder) cuts.push([g.c - g.w / 2, g.c + g.w / 2]);      // just the doorway
       else cuts.push([g.lo, g.hi]);                                   // neighbor owns the whole overlap
     }
@@ -336,7 +240,7 @@ export class Level {
       cursor = Math.max(cursor, b);
     }
     segs.push([cursor, hi]);
-    const sorted = gapList.filter((g) => g.builder).sort((a, b) => a.c - b.c);
+    const sorted = gapList.filter((g) => g.builder && !g.sealed).sort((a, b) => a.c - b.c);
     for (const [a, b] of segs) {
       if (b - a < 0.15) continue;
       const len = b - a, mid = (a + b) / 2;
@@ -440,17 +344,21 @@ export class Level {
   }
 
   // ================= furnishing =================
+  // v4: rooms are dressed like an office, not a yard sale — desks in aligned
+  // rows with their chairs tucked in, machines flush against walls, cabinets
+  // forming aisles, meeting tables with real seating. Randomness only jitters
+  // positions; orientation and grouping are structural.
   furnishRoom(room) {
     const P = this.def.palette;
     const rng = this.rng;
     const w = room.x1 - room.x0, d = room.z1 - room.z0;
-    this.occupied = this.occupied ?? [];
     const occupied = [];
     // Reserve the stairwell landing FIRST. Players materialise here, so nothing
     // — furniture, pillars or chests — may claim it.
     const landing = this.stairLanding(room);
     if (landing) occupied.push({ x: landing.x, z: landing.z, r: 3.6 });
     const free = (x, z, r) => {
+      if (this.nearDoorway(x, z, 2.5)) return false;
       for (const o of occupied) if (Math.hypot(x - o.x, z - o.z) < o.r + r) return false;
       return true;
     };
@@ -458,11 +366,9 @@ export class Level {
       for (let i = 0; i < tries; i++) {
         const x = rngRange(rng, room.x0 + inset, room.x1 - inset);
         const z = rngRange(rng, room.z0 + inset, room.z1 - inset);
-        let ok = true;
-        for (const o of occupied) if (Math.hypot(x - o.x, z - o.z) < o.r + r + margin) { ok = false; break; }
-        // keep doorways clear
-        if (ok && this.nearDoorway(x, z, 2.6)) ok = false;
-        if (ok) { occupied.push({ x, z, r }); return { x, z }; }
+        if (!free(x, z, r + margin)) continue;
+        occupied.push({ x, z, r });
+        return { x, z };
       }
       return null;
     };
@@ -475,26 +381,73 @@ export class Level {
       this.group.add(p);
       this.disposables.push(p.material.map, p.material);
     };
+    const registerDestr = (g, x, z, kind, hp, radius, footprint = true) => {
+      this.group.add(g);
+      const col = footprint ? this.addFootprintCollider(g, x, z, g.rotation.y) : null;
+      this.destructibles.push({ id: nextId(), kind, pos: new THREE.Vector3(x, 0.8, z), radius, hp, group: g, dead: false, collider: col });
+    };
+    const placeDestrAt = (x, z, rotY, fac, kind, hp, radius, footprint = true) => {
+      if (!free(x, z, radius + 0.15)) return null;
+      occupied.push({ x, z, r: radius });
+      const g = fac();
+      g.position.set(x, 0, z);
+      g.rotation.y = rotY;
+      registerDestr(g, x, z, kind, hp, radius, footprint);
+      return g;
+    };
     const placeDestr = (fac, kind, hp, radius, footprint = true) => {
       const p = tryPlace(radius + 0.2);
       if (!p) return null;
       const g = fac();
       g.position.set(p.x, 0, p.z);
       g.rotation.y = rngInt(rng, 0, 3) * Math.PI / 2;
-      this.group.add(g);
-      const col = footprint ? this.addFootprintCollider(g, p.x, p.z, g.rotation.y) : null;
-      this.destructibles.push({ id: nextId(), kind, pos: new THREE.Vector3(p.x, 0.8, p.z), radius, hp, group: g, dead: false, collider: col });
+      registerDestr(g, p.x, p.z, kind, hp, radius, footprint);
       return g;
     };
+    const placeProp = (x, z, rotY, fac) => {
+      if (!free(x, z, 0.55)) return null;
+      occupied.push({ x, z, r: 0.5 });
+      const g = fac();
+      g.position.set(x, 0, z);
+      g.rotation.y = rotY;
+      this.group.add(g);
+      this.registerDebris(g);
+      return g;
+    };
+    // flush-to-wall placement: t runs 0..1 along the wall, rotY faces the room
+    const wallSpot = (side, t, inset) => {
+      if (side === 'w') return { x: room.x0 + inset, z: room.z0 + 2 + (d - 4) * t, rotY: Math.PI / 2 };
+      if (side === 'e') return { x: room.x1 - inset, z: room.z0 + 2 + (d - 4) * t, rotY: -Math.PI / 2 };
+      if (side === 'n') return { x: room.x0 + 2 + (w - 4) * t, z: room.z0 + inset, rotY: 0 };
+      return { x: room.x0 + 2 + (w - 4) * t, z: room.z1 - inset, rotY: Math.PI };
+    };
+    const mountAlarm = (side) => {
+      const s = wallSpot(side, rngRange(rng, 0.15, 0.85), 0.4);
+      const alarm = makeAlarmBox();
+      alarm.position.set(s.x, 1.7, s.z);
+      this.group.add(alarm);
+      this.destructibles.push({ id: nextId(), kind: 'alarm', pos: new THREE.Vector3(s.x, 1.7, s.z), radius: 0.45, hp: 1, group: alarm, dead: false });
+    };
+    // a run of desks, each with its office chair tucked in behind it
+    const deskRow = (cx, cz, rotY, count, gap = 3.3) => {
+      const fx = Math.sin(rotY), fz = Math.cos(rotY);       // desk facing
+      const rx = Math.cos(rotY), rz = -Math.sin(rotY);      // along the row
+      const start = -((count - 1) / 2) * gap;
+      for (let i = 0; i < count; i++) {
+        const x = cx + rx * (start + i * gap), z = cz + rz * (start + i * gap);
+        const g = placeDestrAt(x, z, rotY, () => makeDesk(P), 'furniture', 40, 1.15);
+        if (g) placeProp(x - fx * 1.15, z - fz * 1.15, rotY, () => makeOfficeChair(P.cubicle));
+      }
+    };
+    const longSides = w >= d ? ['n', 's'] : ['w', 'e'];
 
     switch (room.type) {
       case 'core': {
         // The arena. Kept deliberately open — the elevator shaft in the middle
         // is the only hard cover, so the holdout is about angles, not camping.
-        // Pillars sit at the diagonals; the shaft footprint is reserved.
-        occupied.push({ x: 0, z: 0, r: 5.2 });
-        for (const [fx, fz] of [[0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]]) {
-          const px = room.x0 + w * fx, pz = room.z0 + d * fz;
+        occupied.push({ x: 0, z: 0, r: 5.4 });
+        for (const [fx2, fz2] of [[0.16, 0.16], [0.84, 0.16], [0.16, 0.84], [0.84, 0.84]]) {
+          const px = room.x0 + w * fx2, pz = room.z0 + d * fz2;
           if (!free(px, pz, 1.2)) continue;
           const pil = makePillar(WALL_H, P.trim);
           pil.position.set(px, 0, pz);
@@ -502,119 +455,205 @@ export class Level {
           this.addFootprintCollider(pil, px, pz, 0);
           occupied.push({ x: px, z: pz, r: 1.2 });
         }
-        for (let i = 0; i < 4; i++) placeDestr(() => makeDesk(P), 'furniture', 40, 1.15);
-        placeDestr(() => makeVendingMachine(P), 'vending', 50, 0.9);
-        if (rng() < 0.7) placeDestr(() => makeCoffeeMachine(), 'coffee', 30, 0.8);
+        // twin reception desks facing the elevator mouth
+        for (const sdir of [-1, 1]) {
+          const g = placeDestrAt(sdir * 4.8, 6.6, Math.PI, () => makeDesk(P), 'furniture', 40, 1.15);
+          if (g) placeProp(sdir * 4.8, 7.8, Math.PI, () => makeOfficeChair(P.cubicle));
+        }
+        const vs = wallSpot('n', 0.5, 0.85);
+        placeDestrAt(vs.x, vs.z, vs.rotY, () => makeVendingMachine(P), 'vending', 50, 0.9);
         addPoster(); addPoster();
         this.spawnChestIn(room);
         break;
       }
       case 'corridor': {
-        // cover + a trickle of hazards; corridors carry tension, not transit
-        const n = Math.max(1, Math.round(d / 6));
-        for (let i = 0; i < n; i++) placeDestr(() => makeFilingCabinet(), 'furniture', 50, 0.8);
-        if (rng() < 0.5) placeDestr(() => makeCopierProp(), 'furniture', 50, 0.85);
-        if (rng() < 0.4) { const p = tryPlace(0.5); if (p) { const c = makeOfficeChair(); c.position.set(p.x, 0, p.z); this.group.add(c); this.registerDebris(c); } }
-        // wall-mounted alarm (danger: shooting it calls a horde)
-        if (rng() < 0.55) {
-          const ax = rng() < 0.5 ? room.x0 + 0.4 : room.x1 - 0.4;
-          const az = rngRange(rng, room.z0 + 2, room.z1 - 2);
-          const alarm = makeAlarmBox();
-          alarm.position.set(ax, 1.7, az);
-          this.group.add(alarm);
-          this.destructibles.push({ id: nextId(), kind: 'alarm', pos: new THREE.Vector3(ax, 1.7, az), radius: 0.45, hp: 1, group: alarm, dead: false });
+        // everything hugs the walls: corridors carry tension, never clutter
+        const horizontal = w >= d;
+        const wallSides = horizontal ? ['n', 's'] : ['w', 'e'];
+        const len = horizontal ? w : d;
+        const n = Math.max(1, Math.round(len / 11));
+        for (let i = 0; i < n; i++) {
+          const side = wallSides[i % 2];
+          const t = clamp((i + 0.5) / n + rngRange(rng, -0.08, 0.08), 0.05, 0.95);
+          const s = wallSpot(side, t, 0.75);
+          if (rng() < 0.7) placeDestrAt(s.x, s.z, s.rotY, () => makeFilingCabinet(), 'furniture', 50, 0.8);
+          else placeDestrAt(s.x, s.z, s.rotY, () => makeCopierProp(), 'furniture', 50, 0.85);
         }
+        if (rng() < 0.5) {
+          // waiting bench: two chairs side by side against the wall
+          const s = wallSpot(wallSides[0], rngRange(rng, 0.2, 0.8), 0.8);
+          const bx = horizontal ? 0.95 : 0, bz = horizontal ? 0 : 0.95;
+          placeProp(s.x, s.z, s.rotY, () => makeOfficeChair(P.cubicle));
+          placeProp(s.x + bx, s.z + bz, s.rotY, () => makeOfficeChair(P.cubicle));
+        }
+        if (rng() < 0.55) mountAlarm(wallSides[rng() < 0.5 ? 0 : 1]);
+        addPoster();
+        if (len > 34) addPoster();
         break;
       }
       case 'bullpen': {
-        // cubicle pods + desks: the working floor
-        const pods = Math.max(1, Math.round((w * d) / 160));
-        for (let i = 0; i < pods; i++) {
-          const p = tryPlace(3.4, 1.4);
-          if (!p) continue;
-          const c = makeCubicleCluster(P);
-          c.position.set(p.x, 0, p.z);
-          this.group.add(c);
-          const { L, T, H } = c.userData.crossColliders;
-          this.addCollider(p.x - L / 2, p.x + L / 2, p.z - T / 2, p.z + T / 2, H);
-          this.addCollider(p.x - T / 2, p.x + T / 2, p.z - L / 2, p.z + L / 2, H);
+        const horizontal = w >= d;
+        const rotY = horizontal ? 0 : Math.PI / 2;
+        if (rng() < 0.5 && w > 15 && d > 15) {
+          // STYLE A: cubicle farm — clusters on an aligned grid
+          const cols = Math.max(1, Math.floor((w - 6) / 11));
+          const rows = Math.max(1, Math.floor((d - 6) / 11));
+          for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+            const x = room.x0 + 3 + (w - 6) * ((i + 0.5) / cols) + rngRange(rng, -0.6, 0.6);
+            const z = room.z0 + 3 + (d - 6) * ((j + 0.5) / rows) + rngRange(rng, -0.6, 0.6);
+            if (!free(x, z, 3.5)) continue;
+            occupied.push({ x, z, r: 3.4 });
+            const c = makeCubicleCluster(P);
+            c.position.set(x, 0, z);
+            this.group.add(c);
+            const { L, T, H } = c.userData.crossColliders;
+            this.addCollider(x - L / 2, x + L / 2, z - T / 2, z + T / 2, H);
+            this.addCollider(x - T / 2, x + T / 2, z - L / 2, z + L / 2, H);
+          }
+        } else {
+          // STYLE B: open plan — aligned desk rows, all facing the same way
+          const across = horizontal ? d : w;
+          const along = horizontal ? w : d;
+          const rows = Math.max(1, Math.floor(across / 5.6) - 1);
+          const count = Math.min(5, Math.max(2, Math.floor(along / 3.8) - 1));
+          for (let j = 0; j < rows; j++) {
+            const off = (j + 0.5) / rows;
+            const cx = horizontal ? room.cx : room.x0 + 2.6 + (w - 5.2) * off;
+            const cz = horizontal ? room.z0 + 2.6 + (d - 5.2) * off : room.cz;
+            deskRow(cx, cz, rotY, count);
+          }
         }
-        for (let i = 0; i < Math.round(w / 5); i++) placeDestr(() => makeDesk(P), 'furniture', 40, 1.15);
-        placeDestr(() => makeCoffeeMachine(), 'coffee', 30, 0.8);
-        if (rng() < 0.7) placeDestr(() => makeWaterCooler(), 'cooler', 20, 0.6);
-        for (let i = 0; i < 3; i++) { const p = tryPlace(0.5); if (p) { const pl = makePlant(); pl.position.set(p.x, 0, p.z); this.group.add(pl); this.registerDebris(pl); } }
+        // kitchenette against a wall + greenery in the corners
+        const k1 = wallSpot(longSides[0], 0.14, 0.8);
+        placeDestrAt(k1.x, k1.z, k1.rotY, () => makeCoffeeMachine(), 'coffee', 30, 0.8);
+        const k2 = wallSpot(longSides[0], 0.27, 0.75);
+        placeDestrAt(k2.x, k2.z, k2.rotY, () => makeWaterCooler(), 'cooler', 20, 0.6);
+        placeProp(room.x0 + 1.3, room.z0 + 1.3, 0, () => makePlant());
+        placeProp(room.x1 - 1.3, room.z1 - 1.3, 0, () => makePlant());
         addPoster(); addPoster();
-        this.spawnChestIn(room);
+        if (rng() < 0.6) this.spawnChestIn(room);
         break;
       }
       case 'conference': {
-        // a wall of long tables: cover you can vault, and a shooting gallery
-        // for anything that gets on top of them
-        const rows = Math.max(2, Math.round(d / 6));
-        for (let i = 0; i < rows; i++) {
-          const p = tryPlace(2.2, 1.2);
-          if (!p) continue;
+        // one long boardroom table down the middle, chairs on both sides
+        const horizontal = w >= d;
+        const rotY = horizontal ? 0 : Math.PI / 2;
+        const fx = Math.sin(rotY), fz = Math.cos(rotY);        // across the table
+        const rx = Math.cos(rotY), rz = -Math.sin(rotY);       // along the table
+        const segs = Math.max(1, Math.floor(((horizontal ? w : d) - 8) / 4.1));
+        const start = -((segs - 1) / 2) * 3.9;
+        for (let i = 0; i < segs; i++) {
+          const x = room.cx + rx * (start + i * 3.9), z = room.cz + rz * (start + i * 3.9);
           const table = makeDesk(P, false);
-          table.scale.set(1.9, 1, 1.5);
-          table.position.set(p.x, 0, p.z);
-          table.rotation.y = rngInt(rng, 0, 1) * Math.PI / 2;
+          table.scale.set(1.9, 1.05, 1.5);
+          table.position.set(x, 0, z);
+          table.rotation.y = rotY;
           this.group.add(table);
-          this.addCollider(p.x - 1.8, p.x + 1.8, p.z - 0.7, p.z + 0.7, 0.82);
-          for (let c = -1; c <= 1; c++) {
-            const ch = makeOfficeChair(P.cubicle);
-            ch.position.set(p.x + c * 1.1, 0, p.z + 1.1);
-            this.group.add(ch);
-            this.registerDebris(ch);
+          if (horizontal) this.addCollider(x - 1.9, x + 1.9, z - 0.75, z + 0.75, 0.84);
+          else this.addCollider(x - 0.75, x + 0.75, z - 1.9, z + 1.9, 0.84);
+          occupied.push({ x, z, r: 2.0 });
+          for (const sdir of [-1, 1]) {
+            const crot = sdir < 0 ? rotY : rotY + Math.PI;
+            placeProp(x + fx * sdir * 1.7 + rx * 0.7, z + fz * sdir * 1.7 + rz * 0.7, crot, () => makeOfficeChair(P.cubicle));
+            placeProp(x + fx * sdir * 1.7 - rx * 0.9, z + fz * sdir * 1.7 - rz * 0.9, crot, () => makeOfficeChair(P.cubicle));
           }
         }
-        for (const [fx, fz] of [[0.18, 0.5], [0.82, 0.5]]) {
-          const px = room.x0 + w * fx, pz = room.z0 + d * fz;
-          if (!free(px, pz, 1.2)) continue;   // never in front of the stairs
+        // the presentation wall
+        const es = wallSpot(horizontal ? 'w' : 'n', 0.5, 0.4);
+        const scr = makePoster(rngChoose(rng, posters), '#' + P.accent.toString(16).padStart(6, '0'));
+        scr.position.set(es.x, 2.5, es.z);
+        scr.rotation.y = es.rotY;
+        scr.scale.setScalar(1.3);
+        this.group.add(scr);
+        this.disposables.push(scr.material.map, scr.material);
+        for (const [fxr, fzr] of [[0.15, 0.5], [0.85, 0.5]]) {
+          const px = room.x0 + w * fxr, pz = room.z0 + d * fzr;
+          if (!free(px, pz, 1.3)) continue;
           const pil = makePillar(WALL_H, P.trim);
           pil.position.set(px, 0, pz);
           this.group.add(pil);
           this.addFootprintCollider(pil, px, pz, 0);
           occupied.push({ x: px, z: pz, r: 1.2 });
         }
-        addPoster();
-        this.spawnChestIn(room);
-        break;
-      }
-      case 'lounge': {
-        // soft furniture, free soda, and the vending machine that explodes
-        placeDestr(() => makeVendingMachine(P), 'vending', 50, 0.9);
-        placeDestr(() => makeCoffeeMachine(), 'coffee', 30, 0.8);
-        if (rng() < 0.8) placeDestr(() => makeWaterCooler(), 'cooler', 20, 0.6);
-        for (let i = 0; i < 5; i++) {
-          const p = tryPlace(0.6);
-          if (!p) continue;
-          const pl = rng() < 0.5 ? makePlant() : makeOfficeChair(P.cubicle);
-          pl.position.set(p.x, 0, p.z);
-          this.group.add(pl);
-          this.registerDebris(pl);
-        }
-        const hp = tryPlace(1.0, 1.2);
-        if (hp) this.spawnUtility('hydration', hp.x, hp.z);
-        for (let i = 0; i < 3; i++) this.dropSoda(new THREE.Vector3(room.cx + rngRange(rng, -3, 3), 0, room.cz + rngRange(rng, -3, 3)));
-        addPoster();
-        this.spawnChestIn(room);
+        if (rng() < 0.6) this.spawnChestIn(room);
         break;
       }
       case 'records': {
-        // a maze of cabinets: tight sightlines, great for specials, awful for you
-        const n = Math.max(6, Math.round((w * d) / 26));
-        for (let i = 0; i < n; i++) placeDestr(() => makeFilingCabinet(), 'furniture', 50, 0.8);
-        for (let i = 0; i < 2; i++) placeDestr(() => makeCopierProp(), 'furniture', 50, 0.85);
-        if (rng() < 0.7) {
-          const ax = rng() < 0.5 ? room.x0 + 0.4 : room.x1 - 0.4;
-          const az = rngRange(rng, room.z0 + 2, room.z1 - 2);
-          const alarm = makeAlarmBox();
-          alarm.position.set(ax, 1.7, az);
-          this.group.add(alarm);
-          this.destructibles.push({ id: nextId(), kind: 'alarm', pos: new THREE.Vector3(ax, 1.7, az), radius: 0.45, hp: 1, group: alarm, dead: false });
+        // shelving AISLES along the long axis: tight sightlines, gaps to slip
+        // through — great for specials, awful for you
+        const horizontal = w >= d;
+        const rotY = horizontal ? 0 : Math.PI / 2;
+        const across = (horizontal ? d : w) - 5;
+        const rows = Math.max(2, Math.floor(across / 3.4));
+        const runLen = (horizontal ? w : d) - 6;
+        const per = Math.max(2, Math.floor(runLen / 1.75));
+        for (let j = 0; j < rows; j++) {
+          if (rng() < 0.18) continue;                    // a missing row = a wide aisle
+          const off = (j + 0.5) / rows;
+          for (let i = 0; i < per; i++) {
+            if (rng() < 0.22) continue;                  // gaps to slip through
+            const along = -runLen / 2 + (i + 0.5) * (runLen / per);
+            const x = horizontal ? room.cx + along : room.x0 + 2.5 + (w - 5) * off;
+            const z = horizontal ? room.z0 + 2.5 + (d - 5) * off : room.cz + along;
+            placeDestrAt(x, z, rotY, () => makeFilingCabinet(), 'furniture', 50, 0.8);
+          }
         }
+        const cs = wallSpot(longSides[0], 0.92, 0.85);
+        placeDestrAt(cs.x, cs.z, cs.rotY, () => makeCopierProp(), 'furniture', 50, 0.85);
+        if (rng() < 0.7) mountAlarm(longSides[1]);
         addPoster();
-        this.spawnChestIn(room);
+        if (rng() < 0.5) this.spawnChestIn(room);
+        break;
+      }
+      case 'lounge': {
+        // kitchenette line against one wall, seating circle in the middle
+        const kw = longSides[0];
+        const s1 = wallSpot(kw, 0.22, 0.85);
+        placeDestrAt(s1.x, s1.z, s1.rotY, () => makeVendingMachine(P), 'vending', 50, 0.9);
+        const s2 = wallSpot(kw, 0.4, 0.8);
+        placeDestrAt(s2.x, s2.z, s2.rotY, () => makeCoffeeMachine(), 'coffee', 30, 0.8);
+        const s3 = wallSpot(kw, 0.55, 0.75);
+        placeDestrAt(s3.x, s3.z, s3.rotY, () => makeWaterCooler(), 'cooler', 20, 0.6);
+        const t = makeDesk(P, false);
+        t.scale.set(0.9, 0.62, 0.9);
+        t.position.set(room.cx, 0, room.cz);
+        this.group.add(t);
+        this.addCollider(room.cx - 0.9, room.cx + 0.9, room.cz - 0.65, room.cz + 0.65, 0.5);
+        occupied.push({ x: room.cx, z: room.cz, r: 1.2 });
+        for (let i = 0; i < 4; i++) {
+          const a = (i / 4) * Math.PI * 2 + 0.4;
+          const chx = room.cx + Math.cos(a) * 2.1, chz = room.cz + Math.sin(a) * 2.1;
+          placeProp(chx, chz, Math.atan2(-Math.cos(a), -Math.sin(a)), () => makeOfficeChair(P.cubicle));
+        }
+        placeProp(room.x0 + 1.3, room.z1 - 1.3, 0, () => makePlant());
+        placeProp(room.x1 - 1.3, room.z0 + 1.3, 0, () => makePlant());
+        const hp2 = tryPlace(1.0, 1.2);
+        if (hp2) this.spawnUtility('hydration', hp2.x, hp2.z);
+        for (let i = 0; i < 3; i++) this.dropSoda(new THREE.Vector3(room.cx + rngRange(rng, -3, 3), 0, room.cz + rngRange(rng, -3, 3)));
+        addPoster();
+        if (rng() < 0.6) this.spawnChestIn(room);
+        break;
+      }
+      case 'lair': {
+        // the floor lead's private office: meet them here on YOUR terms, or at
+        // the elevator on theirs. One door, an executive desk, and their prize.
+        const g = makeCEODesk(P);
+        const dx = room.cx, dz = room.z0 + 2.6;
+        g.position.set(dx, 0, dz);
+        this.group.add(g);
+        this.addFootprintCollider(g, dx, dz, 0);
+        occupied.push({ x: dx, z: dz, r: 2.3 });
+        const st = makeStatue();
+        st.position.set(room.x0 + 1.7, 0, room.z0 + 1.7);
+        this.group.add(st);
+        this.addFootprintCollider(st, room.x0 + 1.7, room.z0 + 1.7, 0);
+        for (const tw of [0.62, 0.82]) {
+          const cs2 = wallSpot('w', tw, 0.75);
+          placeDestrAt(cs2.x, cs2.z, cs2.rotY, () => makeFilingCabinet(), 'furniture', 50, 0.8);
+        }
+        placeProp(room.x1 - 1.4, room.z0 + 1.5, 0, () => makePlant());
+        this.spawnChestIn(room, true);     // the lead's gold chest
+        addPoster();
         break;
       }
       case 'vault': {
@@ -641,10 +680,18 @@ export class Level {
         break;
       }
       case 'breakroom': {
-        placeDestr(() => makeVendingMachine(P), 'vending', 50, 0.9);
+        const bs = wallSpot(longSides[0], 0.3, 0.85);
+        placeDestrAt(bs.x, bs.z, bs.rotY, () => makeVendingMachine(P), 'vending', 50, 0.9);
         const p = tryPlace(1.0);
         if (p) this.spawnUtility('hydration', p.x, p.z);
         for (let i = 0; i < 3; i++) this.dropSoda(new THREE.Vector3(room.cx + rngRange(rng, -2, 2), 0, room.cz + rngRange(rng, -2, 2)));
+        break;
+      }
+      default: {
+        // unpaid pocket dead-ends fall back to a light records/lounge dressing
+        for (let i = 0; i < 3; i++) placeDestr(() => makeFilingCabinet(), 'furniture', 50, 0.8);
+        placeProp(room.x0 + 1.3, room.z0 + 1.3, 0, () => makePlant());
+        if (rng() < 0.5) this.spawnChestIn(room);
         break;
       }
     }
@@ -790,6 +837,108 @@ export class Level {
       const x = rngRange(this.rng, -hw + 4, hw - 4), z = rngRange(this.rng, -hd + 4, hd - 4);
       this.spawnUtility(utils[i], x, z);
     }
+  }
+
+  // ================= sandbox (v0.2 toy-test floor) =================
+  // One open room, packed with breakables and self-respawning crash-test
+  // dummies. No elevator, no objectives: the room exists to answer "is ten
+  // minutes of movement and hitting things fun on its own?" (D 5.1). The
+  // dummy pads are reserved before furniture so a respawn never lands inside
+  // a vending machine.
+  buildSandbox() {
+    const def = this.def;
+    const P = def.palette;
+    const rng = this.rng;
+    const [W, D] = def.size;
+    const hw = W / 2, hd = D / 2;
+    const room = { id: 0, type: 'sandbox', x0: -hw, x1: hw, z0: -hd, z1: hd, cx: 0, cz: 0, discovered: true, spine: true };
+    this.rooms.push(room);
+    this.coreRoom = room;
+    this.arenaRoom = room;
+    this._bounds = { minX: -hw + 0.4, maxX: hw - 0.4, minZ: -hd + 0.4, maxZ: hd - 0.4 };
+
+    // lighting: same recipe as the hub floors
+    const hemi = new THREE.HemisphereLight(P.sky, P.trim, 0.62);
+    const sun = new THREE.DirectionalLight(P.light, 1.0);
+    sun.position.set(14, 22, 8);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left = -hw - 4; sun.shadow.camera.right = hw + 4;
+    sun.shadow.camera.top = hd + 4; sun.shadow.camera.bottom = -hd - 4;
+    sun.shadow.camera.far = 90;
+    sun.shadow.bias = -0.0004;
+    this.group.add(hemi, sun, sun.target);
+    this.lights = { hemi, sun };
+
+    this.buildRoomShell(room);   // a single room has no neighbours: four solid walls
+
+    // ---- dummy pads on a ring, reserved before any furniture ----
+    const occupied = [{ x: 0, z: hd - 3, r: 3.6 }];   // the player's arrival strip
+    this.dummySpots = [];
+    const nDummies = def.dummies ?? 6;
+    const ringR = Math.min(hw, hd) * 0.55;
+    for (let i = 0; i < nDummies; i++) {
+      const a = (i / nDummies) * Math.PI * 2;
+      const x = Math.cos(a) * ringR, z = Math.sin(a) * ringR;
+      this.dummySpots.push(new THREE.Vector3(x, 0, z));
+      occupied.push({ x, z, r: 2.0 });
+      const pad = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.95, 24),
+        new THREE.MeshBasicMaterial({ color: P.accent, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }));
+      pad.rotation.x = -Math.PI / 2;
+      pad.position.set(x, 0.04, z);
+      this.group.add(pad);
+    }
+
+    const tryPlace = (r, margin = 0.8, tries = 30) => {
+      for (let i = 0; i < tries; i++) {
+        const x = rngRange(rng, -hw + 1.8, hw - 1.8);
+        const z = rngRange(rng, -hd + 1.8, hd - 1.8);
+        let ok = true;
+        for (const o of occupied) if (Math.hypot(x - o.x, z - o.z) < o.r + r + margin) { ok = false; break; }
+        if (ok) { occupied.push({ x, z, r }); return { x, z }; }
+      }
+      return null;
+    };
+    const placeDestr = (fac, kind, hp, radius) => {
+      const p = tryPlace(radius + 0.2);
+      if (!p) return;
+      const g = fac();
+      g.position.set(p.x, 0, p.z);
+      g.rotation.y = rngInt(rng, 0, 3) * Math.PI / 2;
+      this.group.add(g);
+      const col = this.addFootprintCollider(g, p.x, p.z, g.rotation.y);
+      this.destructibles.push({ id: nextId(), kind, pos: new THREE.Vector3(p.x, 0.8, p.z), radius, hp, group: g, dead: false, collider: col });
+    };
+
+    // dense destructibles: the sandbox IS the furniture
+    for (let i = 0; i < 2; i++) {
+      const p = tryPlace(3.4, 1.2);
+      if (!p) continue;
+      const c = makeCubicleCluster(P);
+      c.position.set(p.x, 0, p.z);
+      this.group.add(c);
+      const { L, T, H } = c.userData.crossColliders;
+      this.addCollider(p.x - L / 2, p.x + L / 2, p.z - T / 2, p.z + T / 2, H);
+      this.addCollider(p.x - T / 2, p.x + T / 2, p.z - L / 2, p.z + L / 2, H);
+    }
+    for (let i = 0; i < Math.round((W * D) / 90); i++) placeDestr(() => makeDesk(P), 'furniture', 40, 1.15);
+    for (let i = 0; i < 6; i++) placeDestr(() => makeFilingCabinet(), 'furniture', 50, 0.8);
+    for (let i = 0; i < 3; i++) placeDestr(() => makeVendingMachine(P), 'vending', 50, 0.9);
+    for (let i = 0; i < 3; i++) placeDestr(() => makeCoffeeMachine(), 'coffee', 30, 0.8);
+    for (let i = 0; i < 3; i++) placeDestr(() => makeWaterCooler(), 'cooler', 20, 0.6);
+    for (let i = 0; i < 2; i++) placeDestr(() => makeCopierProp(), 'furniture', 50, 0.85);
+    for (let i = 0; i < 6; i++) {
+      const p = tryPlace(0.5);
+      if (!p) continue;
+      const pl = rng() < 0.5 ? makePlant() : makeOfficeChair(P.cubicle);
+      pl.position.set(p.x, 0, p.z);
+      this.group.add(pl);
+      this.registerDebris(pl);
+    }
+    for (let i = 0; i < 4; i++) this.dropSoda(new THREE.Vector3(rngRange(rng, -hw + 3, hw - 3), 0, rngRange(rng, -hd + 3, hd - 3)));
+
+    // badge in at the south wall, facing the room; no elevator on this floor
+    this.playerSpawns = [{ wing: 's', label: null, pos: new THREE.Vector3(0, 0, hd - 3), yaw: Math.PI }];
   }
 
   /**

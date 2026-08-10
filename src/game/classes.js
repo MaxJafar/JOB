@@ -1,6 +1,8 @@
 // ============ the six employees of the month ============
 import * as THREE from 'three';
+import classesData from '../../data/classes.json';
 import { chance, rand } from '../core/utils.js';
+import { deepApply, announceDataReload } from './dataUtils.js';
 
 const _v = new THREE.Vector3();
 
@@ -522,3 +524,22 @@ export const CLASSES = [
 function dist(a, b) { return Math.hypot(a.x - b.x, a.z - b.z); }
 
 export const CLASS_BY_KEY = Object.fromEntries(CLASSES.map((c) => [c.key, c]));
+
+// Chassis scalar tuning (hp / speed / damage, ability cooldowns, mags) lives in
+// /data/classes.json and is applied ON TOP of the definitions above: the
+// closures stay here, the numbers there win (v0.2 FOUNDATIONS, hot-reloadable).
+export function applyClassData(data = classesData) {
+  for (const [key, patch] of Object.entries(data)) {
+    const cls = CLASS_BY_KEY[key];
+    if (cls) deepApply(cls, patch);
+  }
+}
+applyClassData();
+
+if (import.meta.hot) {
+  import.meta.hot.accept(['../../data/classes.json'], ([mod]) => {
+    if (!mod) return;
+    applyClassData(mod.default);
+    announceDataReload('classes.json');
+  });
+}

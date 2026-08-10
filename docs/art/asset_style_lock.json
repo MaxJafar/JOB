@@ -2,7 +2,7 @@
   "schema_version": "1.0.0",
   "lock_id": "job_asset_style_lock_v1",
   "status": "draft",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "brand": {
     "game": "J.O.B. - Just Obey Business",
     "tone": "corporate office satire with brutalist memo clarity and arcade neon escalation",
@@ -131,10 +131,52 @@
       "output_contract": "128px transparent frames plus 24px transparent gems",
       "allowed_variation": ["common", "uncommon", "rare", "exec", "contraband"],
       "prohibited": ["rarity names baked into art", "photoreal gems", "unapproved color semantics"]
+    },
+    "menu_glyph": {
+      "purpose": "platform-stable button, label, status, and empty-slot symbols",
+      "text_strategy": "no_text_currentColor_vector",
+      "output_contract": "24px SVG mask master plus 48px transparent RGBA derivative and specified tint states",
+      "allowed_variation": ["default", "gold", "dim", "semantic silhouette"],
+      "prohibited": ["system emoji as primary art", "baked labels", "rounded icon containers"]
+    },
+    "class_emblem": {
+      "purpose": "department-badge identity for the ten playable roles",
+      "text_strategy": "no_text",
+      "output_contract": "128px clipped-corner SVG master plus 64px transparent RGBA derivative",
+      "allowed_variation": ["locked class accent on border", "desk-object badge subject"],
+      "prohibited": ["faces", "character portraits", "palette drift", "photoreal objects"]
+    },
+    "menu_plate": {
+      "purpose": "stretch-safe screen, card, row, input, status, and control surfaces",
+      "text_strategy": "live_engine_text",
+      "output_contract": "dimensioned SVG masters plus deterministic transparent RGBA 9-slice derivatives",
+      "allowed_variation": ["default", "hover", "pressed", "disabled", "primary", "danger", "semantic row state"],
+      "prohibited": ["baked labels", "quiet-center obstruction", "rounded pills", "deep shadow"]
+    },
+    "perk_icon": {
+      "purpose": "stable Severance perk identity derived from perk IDs",
+      "text_strategy": "no_text",
+      "output_contract": "128px SVG master plus 64px transparent RGBA derivative",
+      "allowed_variation": ["locked semantic accent", "office-benefit object motif"],
+      "prohibited": ["emoji as primary art", "baked perk names", "photoreal rendering"]
+    },
+    "verdict_stamp": {
+      "purpose": "run-ending fired and promoted display marks",
+      "text_strategy": "baked_display_mark_exception",
+      "output_contract": "1024x420 SVG master plus transparent RGBA derivative with deterministic distress",
+      "allowed_variation": ["fired red at -4 degrees", "promoted gold at +3 degrees"],
+      "prohibited": ["mutable stats", "extra copy", "font substitution without ledger record"]
+    },
+    "keycap": {
+      "purpose": "handbook and class-skill input prompts",
+      "text_strategy": "live_engine_text",
+      "output_contract": "stretch-safe SVG master plus transparent RGBA derivative",
+      "allowed_variation": ["1u", "wide", "mouse", "live label width"],
+      "prohibited": ["baked key labels", "rounded consumer-keyboard styling", "platform emoji"]
     }
   },
   "production_rules": {
-    "text_strategy": "live HTML/engine text except the editable logo SVG",
+    "text_strategy": "live HTML/engine text except the editable logo SVG and the two locked verdict display marks",
     "logo_strategy": "editable SVG master with deterministic raster derivatives",
     "font_strategy": "Archivo Black or equivalent OFL display face; IBM Plex Mono or equivalent OFL ledger face; platform fallbacks documented in docs/art/FONTS.md",
     "transparency": "RGBA PNG with transparent corners; no chroma-key source is needed for deterministic vector-derived UI assets",
@@ -143,7 +185,13 @@
   "change_control": {
     "owner": "Project owner review pending",
     "update_trigger": "palette, corner motif, typography strategy, or asset-family contract changes",
-    "versioning": "amend the art bible and lock together; regenerate affected masters and derivatives"
+    "versioning": "amend the art bible and lock together; regenerate affected masters and derivatives",
+    "current_amendment": {
+      "version": "1.1.0",
+      "trigger": "Tier 3 menu-pack-v1 adds menu glyph, class emblem, menu plate, perk icon, verdict stamp, and keycap contracts",
+      "migration": "generate deterministic Tier 3 masters and derivatives, retain live text except the two verdict marks, and preserve Tier 1 hashes",
+      "review_date": "owner screenshot review pending"
+    }
   },
   "open_decisions": [
     "confirm production font files and local shipping policy",

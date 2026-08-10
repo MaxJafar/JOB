@@ -147,8 +147,8 @@ export const THREAT_BASE = Object.freeze({
   karen: -Infinity,   // 950hp / 51 DPS, provoked by ANY damage, hunts only its
                       // provoker and outruns every class. A bot that provokes her
                       // and dies hands the human a permanent hunter. Never.
-  gossip: 100,        // pops at 3m for gooT 8s + a director horde call
-  micromanager: 95,   // jockey: latching the human is a 50% speed tax on the human
+  gossip: 100,        // a 4s rumor call that ends in a director horde
+  micromanager: 95,   // books a meeting that roots whoever it lands on
   streamer: 90,       // marks everyone, rallies everything, queues a horde
   motivator: 85,      // rally x1.3 speed makes roombas outrun sprinting melee
   sysadmin: 80,       // EMP shock disables dash/secondary/consumables
@@ -204,13 +204,13 @@ export function scoreThreat(t, doctrine, ctx, selfPos) {
   // special idling — this is what makes bots interrupt rather than grind.
   switch (t.key) {
     case 'gossip':
-      // popRange is 3.0 from ITS target; 6.5m of goo splash follows. Once it is
-      // inside 6m of anybody it is seconds from redirecting the whole floor.
-      if (Math.min(t.dist, t.distToLeader) < 6) urgency *= 2;
+      // The call is the whole threat and it is interruptible: four seconds to
+      // kill her or the floor gets rerouted onto everyone.
+      if (t.casting) urgency *= 4;
       break;
     case 'micromanager':
-      if (t.latched && t.onLeader) urgency *= 3;      // riding the human: drop everything
-      else if (t.windup > 0) urgency *= 2;            // 0.45s pounce windup
+      if (t.booking && t.onLeader) urgency *= 3;      // the human is on the clock
+      else if (t.booking) urgency *= 2;
       break;
     case 'sysadmin':
       if (t.telegraph) urgency *= 2;
@@ -364,13 +364,15 @@ export class BotBrain {
    *   time    number, monotonic seconds. Use game.runTime — net.now is
    *           PERMANENTLY 0 when solo and will freeze every timer in here.
    *   self    { pos:{x,y,z}, yaw, hp, maxHp, ammo, magSize, reloading, dead,
-   *             heat, overheated, stunned, shocked, latched, tethered,
+   *             heat, overheated, stunned, shocked, booked, tethered,
    *             dashReady, secondaryReady, punchCount, overclock }
    *   leader  { pos, hp, maxHp, dead, down } — the HUMAN. May be null.
    *   allies  [ { id, pos, hp, maxHp, dead, down, isLeader } ]
    *   threats [ { id, key, pos:{x,y,z}, aimPos:{x,y,z}, dist, distToLeader,
    *               hpFrac, los, elite, boss, special, big, rare, windup,
-   *               telegraph, latched, onLeader, radius, speed } ]
+   *               telegraph, casting, booking, onLeader, radius, speed } ]
+   *             `casting` = the Gossip's rumor call is live (interruptible);
+   *             `booking` = the Micromanager has a meeting on someone's clock.
    *             `aimPos` must be the enemy CENTER (pos.y + def.centerY) or every
    *             shot at a Delivery Drone hovering at 3.4m goes low.
    *   hazards [ { x, z, radius, urgent } ] EMP fields, coffee puddles, telegraphs.
@@ -636,7 +638,7 @@ export class BotBrain {
     // empty room instead of rejoining, which reads as the AI being stuck.
     const inDanger = clamp(1 - Math.max(0, c.nearDist - 6) / 8, 0, 1);
     let retreat = hurt * 0.85 * inDanger + pressed * hurt * 0.5 + clamp(c.count6 / 5, 0, 1) * 0.2;
-    if (self.latched) retreat += 0.25;
+    if (self.booked) retreat += 0.25;
     if (c.hpFrac < 0.18) retreat += 0.3;
     // Asymmetric exit: once retreating we keep retreating until healthy again,
     // otherwise the bot bounces off its own threshold at exactly retreatHp.
@@ -1018,9 +1020,10 @@ export class BotBrain {
         // the thing chasing you. That constraint is free panic-body-language.
         d.faceMove = true;
         d.wantSprint = true;
-        if (self.dashReady && (self.latched || self.tethered || c.nearDist < 3)) {
+        if (self.dashReady && (self.booked || self.tethered || c.nearDist < 3)) {
           d.wantDash = true;
-          d.dashReason = self.latched ? 'shake-jockey' : self.tethered ? 'break-tether' : 'disengage';
+          // dashing is the only way out of a meeting, and it cuts a leash too
+          d.dashReason = self.booked ? 'leave-meeting' : self.tethered ? 'break-tether' : 'disengage';
         }
         break;
       }

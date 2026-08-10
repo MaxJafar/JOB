@@ -1,0 +1,35 @@
+{
+  "tiers": [
+    { "key": "common", "prefix": "", "mult": 1, "cdMult": 1, "color": "0x9aa3b0", "css": "#9aa3b0" },
+    { "key": "uncommon", "prefix": "REVISED ", "mult": 1.35, "cdMult": 0.9, "color": "0x58e07c", "css": "#58e07c" },
+    { "key": "rare", "prefix": "PATENTED ", "mult": 1.8, "cdMult": 0.78, "color": "0xffd23f", "css": "#ffd23f" }
+  ],
+  "roll": {
+    "rareBase": 8,
+    "rareBoost": 26,
+    "uncommonBase": 36,
+    "uncommonBoost": 34,
+    "pityPerDry": 0.14
+  },
+  "passives": {
+    "ergochair": { "specialCdMult": 0.18 },
+    "caffeinedrip": { "dashCdMult": 0.2, "dashBurn": 0.9 },
+    "openplan": { "crowdDamage": 0.04 },
+    "standingdesk": { "fullHpMove": 0.12 },
+    "backupserver": { "restoreIframes": 2 },
+    "noisecomplaint": { "killStunRadius": 3.5, "killStun": 0.35 },
+    "overtimepay": { "comboMoney": 0.5, "comboLoot": 0.18 },
+    "eotm": { "eliteBuff": 0.25, "eliteBuffTime": 8 },
+    "papertrail": { "snackEvery": 12 },
+    "firemarshal": { "furnitureBlast": 1.6, "furnitureRadius": 3.4 }
+  },
+  "bossCards": {
+    "security": "bodycheck",
+    "chro": "meeting",
+    "cto": "router",
+    "cfo": "taxaudit",
+    "cmo": "fullsend",
+    "vp": "coldcall",
+    "ceo": "evacuate"
+  }
+}

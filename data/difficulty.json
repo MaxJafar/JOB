@@ -1,0 +1,11 @@
+{
+  "stages": [
+    { "at": 0.0, "label": "PROBATION" },
+    { "at": 1.45, "label": "EMPLOYEE OF THE MONTH" },
+    { "at": 2.0, "label": "MIDDLE MANAGEMENT" },
+    { "at": 2.7, "label": "CRUNCH TIME" },
+    { "at": 3.5, "label": "HOSTILE WORKPLACE" },
+    { "at": 4.5, "label": "SHAREHOLDER MELTDOWN" },
+    { "at": 6.0, "label": "MARKET COLLAPSE" }
+  ]
+}

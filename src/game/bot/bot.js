@@ -111,12 +111,13 @@ export class BotPlayer {
     this.gooT = 0;
     this.slowT = 0;
     this.gooResist = false;
-    this.latch = null;
-    this.latchMash = 0;
     this.tether = null;
     this.hurtFlash = 0;
     this.stunT = 0;
     this.shockT = 0;
+    this.meetingT = 0;              // Micromanager countdown (see applyBooked)
+    this.meetingBy = null;
+    this.bookedT = 0;
     this.downT = 0;                 // >0 while awaiting the next-floor respawn
 
     // ---- AI ----
@@ -247,12 +248,23 @@ export class BotPlayer {
   applyStun(dur) { this.stunT = Math.max(this.stunT, dur); }
   applyShock(dur) { this.shockT = Math.max(this.shockT, dur); }
 
+  /**
+   * A booked meeting pins a teammate's feet but not their trigger. The bot
+   * loop reads `bookedT` as a movement lock only, so an AI teammate caught in
+   * one keeps firing exactly like a human would.
+   */
+  applyBooked(dur) {
+    this.bookedT = Math.max(this.bookedT, dur);
+    this.cancelMeeting();
+  }
+
+  cancelMeeting() { this.meetingT = 0; this.meetingBy = null; }
+
   die() {
     if (this.dead) return;
     this.dead = true;
     this.hp = 0;
     this.downT = 0;
-    this.latch = null;
     this.mesh.visible = false;
     this.game.effects.shatter(this.body, { center: this.centerPos.clone(), power: 6, upPower: 5 });
     this.game.hud?.toast?.(`${this.name} was terminated`, 'warn');
@@ -297,9 +309,12 @@ export class BotPlayer {
     this.slowT = Math.max(0, this.slowT - dt);
     this.stunT = Math.max(0, this.stunT - dt);
     this.shockT = Math.max(0, this.shockT - dt);
+    this.bookedT = Math.max(0, this.bookedT - dt);
     this.recoilT = Math.max(0, this.recoilT - dt * 5);
+    if (this.meetingT > 0 && (!this.meetingBy || this.meetingBy.dead)) this.cancelMeeting();
 
-    const canAct = this.stunT <= 0 && !this.latch;
+    const canAct = this.stunT <= 0;
+    const rooted = this.bookedT > 0;   // feet pinned, trigger finger free
 
     // ---- 1. target ----
     // Re-scored on a throttle, not per frame: pickThreat walks the whole enemy
@@ -336,8 +351,8 @@ export class BotPlayer {
       dash: false,
     });
 
-    if (!canAct) {
-      this.motor.setIntent({ moveX: 0, moveZ: 0, yaw: this.yaw, speedCap: 0, canAct: false });
+    if (!canAct || rooted) {
+      this.motor.setIntent({ moveX: 0, moveZ: 0, yaw: this.yaw, speedCap: 0, canAct });
     } else if (intent?.move) {
       // squad works in world directions; the motor wants camera-relative axes.
       worldDirToMoveIntent(intent.moveDir.x, intent.moveDir.z, this.yaw, this._moveIntent);

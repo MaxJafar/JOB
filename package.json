@@ -3,8 +3,16 @@
   "private": true,
   "version": "0.4.0",
   "description": "J.O.B — a low-poly office roguelite battle arena (Risk of Rain x Left 4 Dead)",
-  "license": "UNLICENSED",
-  "author": "pumba",
+  "license": "MIT",
+  "author": "MaxJafar",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MaxJafar/JOB.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MaxJafar/JOB/issues"
+  },
+  "homepage": "https://github.com/MaxJafar/JOB#readme",
   "type": "module",
   "engines": {
     "node": ">=20.19"

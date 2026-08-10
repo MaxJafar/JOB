@@ -25,8 +25,16 @@ desktop.ini
 npm-debug.log*
 .vite/
 coverage/
+__pycache__/
+*.py[cod]
+
+# ---- local agent config (machine-specific, not shared) ----
+.claude/settings.local.json
 
 # ---- stray "Save Page As" cruft in the project root ----
 # (left in place on disk, just not tracked — delete when you're sure)
 /*_files/
 /J.O.B*.html
+
+# ---- belongs to another project (MaxJafar/wilhelm-alert), parked here by mistake ----
+/wilhelm-scream-banner.png

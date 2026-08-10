@@ -1,0 +1,86 @@
+name: Bug report
+description: Something is broken, crashing, or behaving wrong
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing. Two things make a report immediately actionable:
+        the **crash report** (the game shows a copyable one instead of freezing)
+        and the **run seed** (floors are deterministic, so a seed reproduces the
+        level exactly).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+      placeholder: |
+        Dashing through the Mediator's lasso should break it. Instead the
+        rooted chip stays on and I keep getting reeled in.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: Steps. "Spawned it from the debug panel" is a perfectly good step 1.
+      placeholder: |
+        1. Warp to HUMAN RESOURCES (debug panel → floors)
+        2. Spawn a Mediator
+        3. Let it lasso you, then press Q
+    validations:
+      required: true
+
+  - type: input
+    id: seed
+    attributes:
+      label: Run seed
+      description: Shown on the pause screen. Leave blank if the bug isn't level-specific.
+
+  - type: textarea
+    id: crash
+    attributes:
+      label: Crash report / console output
+      description: Paste the whole copyable crash report if you got one. It carries the build version.
+      render: text
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options:
+        - Single player
+        - Co-op — I was the host
+        - Co-op — I was a guest
+        - With bot teammates
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: From the title screen or the crash report. If you're on a git checkout, the commit hash.
+      placeholder: "v0.4.0 / c9112d7"
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: Browser + OS + GPU
+      placeholder: "Chrome 141, Windows 11, RTX 3060"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for this
+          required: true
+        - label: I checked whether it still happens with post-FX off and physics debris off (Settings) — helps isolate WASM/GPU issues
+          required: false

@@ -31,13 +31,13 @@ import { BotParty } from './bot/party.js';
 import { Telemetry } from '../core/telemetry.js';
 import { crashHandler } from '../core/errors.js';
 import { debugEnabled } from '../dev/enabled.js';
-import { FLOORS, TUNE, ANNOUNCER } from './config.js';
+import { FLOORS, SANDBOX_FLOOR, WAVES, TUNE, ANNOUNCER } from './config.js';
 import { rollItem, ITEM_BY_ID, ITEMS } from './items.js';
 import { rollDraft } from './upgrades.js';
 import { KpiTracker } from './kpis.js';
 import { THROWABLES, CONSUMABLES, rollWearable } from './gear.js';
 import { rollModule, ModuleLuck, BOSS_MODULES } from './modules.js';
-import { clamp, chance, rand, choose, dist2D } from '../core/utils.js';
+import { clamp, chance, rand, choose, dist2D, nextId } from '../core/utils.js';
 import { cyl, box } from './props.js';
 import { preloadModels, updateMixers, reapRigs, loadedModels } from './models.js';
 import { makePerson } from './characters.js';
@@ -133,6 +133,7 @@ export class Game {
     this.enemyById = new Map();
     this.turrets = [];
     this.hazards = [];
+    this.tickets = [];      // The Complainer's filed complaints
     this.slowZones = [];
     this.shockRings = [];
     this.tickers = [];
@@ -370,6 +371,7 @@ export class Game {
     this.turrets.length = 0;
     for (const h of this.hazards) this.scene.remove(h.mesh);
     this.hazards.length = 0;
+    this.tickets.length = 0;   // their meshes belong to the level group
     for (const z of this.slowZones) this.scene.remove(z.mesh);
     this.slowZones.length = 0;
     for (const r of this.shockRings) this.scene.remove(r.mesh);
@@ -443,6 +445,7 @@ export class Game {
     this.enemyById.clear();
     for (const h of this.hazards) this.scene.remove(h.mesh);
     this.hazards.length = 0;
+    this.tickets.length = 0;   // their meshes belong to the level group
     for (const z of this.slowZones) this.scene.remove(z.mesh);
     this.slowZones.length = 0;
     for (const r of this.shockRings) this.scene.remove(r.mesh);
@@ -462,7 +465,8 @@ export class Game {
 
     this.floorIndex = idx;
     this.floorSeed = seed;
-    this.floorDef = FLOORS[idx];
+    // idx -1 is the sandbox: a floor outside the tower rotation (v0.2)
+    this.floorDef = idx < 0 ? SANDBOX_FLOOR : FLOORS[idx];
     this.kpi.resetFloor();
     this.hud.setKpi(null);
     this.combo.count = 0;
@@ -472,6 +476,7 @@ export class Game {
     this.lockdown = null;
     this.miniBoss = null;
     this.miniBossDone = false;
+    this._lairTriggered = false;
     this.currentRoom = null;
     if (this.player) {
       this.player.hydratedThisFloor = false;
@@ -495,7 +500,8 @@ export class Game {
       this.player.motor.teleport(sp.pos.x + rand(-1, 1), sp.pos.y, sp.pos.z + rand(-1, 1));
       this.player.yaw = sp.yaw;
       this.player.parachuteUsed = false;
-      this.player.stunT = this.player.shockT = 0;
+      this.player.stunT = this.player.shockT = this.player.bookedT = 0;
+      this.player.cancelMeeting();
       this.player.breakTether(true);
       if (this.player.dead) { this.player.dead = false; this.player.hp = this.player.stats.maxHp * 0.5; this.player.mesh.visible = true; }
     }
@@ -543,6 +549,34 @@ export class Game {
     this.fadeOut(() => {
       this.buildFloor(idx, seed);
     });
+  }
+
+  /**
+   * The v0.2 toy-test floor. From the title it starts a fresh run straight into
+   * the sandbox; mid-run it warps there. Dummies respawn via updateSandbox.
+   */
+  enterSandbox() {
+    if (this.state !== 'run') {
+      this.startRun(CLASSES[0]?.key ?? 'intern', { floorIndex: -1 });
+      return;
+    }
+    const seed = (Math.random() * 1e9) | 0;
+    this.fadeOut(() => this.buildFloor(-1, seed));
+  }
+
+  updateSandbox(dt) {
+    this.sandboxRespawnT = (this.sandboxRespawnT ?? 0) - dt;
+    if (this.sandboxRespawnT > 0) return;
+    this.sandboxRespawnT = this.floorDef.dummyRespawn ?? 2.5;
+    const want = this.floorDef.dummies ?? 6;
+    let alive = 0;
+    for (const e of this.enemies) if (!e.dead && e.key === 'dummy') alive++;
+    if (alive >= want) return;
+    const spots = this.level.dummySpots ?? [];
+    const pos = spots.length
+      ? spots[(Math.random() * spots.length) | 0]
+      : this.level.findSpawnPoint(this.player?.pos ?? _v1.set(0, 0, 0), 6, 20);
+    if (pos) this.spawnEnemy('dummy', pos, {});
   }
 
   continueEndless() {
@@ -753,8 +787,12 @@ export class Game {
     }
 
     this.level.update(dt, this);
-    if (isHost) this.director.update(dt);
-    if (isHost) this.kpi.update(dt);
+    // the sandbox has no director, no KPIs and no clock pressure — just the
+    // toy and the dummies (D 5.1)
+    const sandbox = !!this.floorDef?.sandbox;
+    if (isHost && !sandbox) this.director.update(dt);
+    if (isHost && !sandbox) this.kpi.update(dt);
+    if (isHost && sandbox) this.updateSandbox(dt);
 
     // combo decay
     if (this.combo.count > 0) {
@@ -811,6 +849,7 @@ export class Game {
     // projectiles & hazards
     this.projectiles.update(dt);
     this.updateHazards(dt);
+    this.updateTickets(dt);
     this.updateShockRings(dt);
     this.updateTurrets(dt);
     this.updateGearDrops(dt);
@@ -836,6 +875,8 @@ export class Game {
 
     // elevator event
     if (isHost) this.updateElevatorEvent(dt);
+    // the floor lead's office: walking in starts that fight early
+    if (isHost) this.updateLairTrigger();
 
     // ---- room tracking: discovery announcements + vault payout ----
     if (this.player && !this.player.dead && this.level.rooms?.length) {
@@ -846,6 +887,7 @@ export class Game {
           room.discovered = true;
           const names = {
             core: '🛗 THE ELEVATOR CORE', corridor: null, bullpen: 'THE OPEN OFFICE',
+            lair: "⚠ THE FLOOR LEAD'S OFFICE",
             conference: 'CONFERENCE CENTER', lounge: 'STAFF LOUNGE', records: 'RECORDS',
             vault: '💰 THE VAULT', utility: 'FACILITIES', breakroom: 'BREAK ROOM',
           };
@@ -1356,6 +1398,14 @@ export class Game {
         d.group.visible = false;
         this.director.triggerAlarmHorde(d.pos);
         break;
+      case 'ticket':
+        // shooting the paperwork closes the complaint and lifts the silence
+        this.effects.burst(d.pos.clone(), { color: 0xf4f4f6, n: 12, speed: 4, ttl: 0.6, size: 0.09 });
+        this.level.group.remove(d.group);
+        this.removeTicket(d.id);
+        this.audio.sfx('slip', { vol: 0.6 });
+        this.hud.toast('🗑 COMPLAINT WITHDRAWN', 'item');
+        break;
     }
   }
 
@@ -1398,6 +1448,86 @@ export class Game {
             }
           }
         }
+      }
+    }
+  }
+
+  // ================= filed complaints (THE COMPLAINER) =================
+  // A ticket is bureaucracy as area denial: stand in it and your abilities are
+  // offline, and the staff standing in it are being looked after. It is also a
+  // single sheet of paper with 1 HP — it goes into level.destructibles so every
+  // existing damage path (a bullet, a swing, a blast) already knows how to file
+  // it in the bin. This is the L4D Spitter puddle replaced by something you
+  // answer with aim instead of with footwork.
+  spawnTicket(pos, def) {
+    const spike = cyl(0.02, 0.02, 0.9, 0x9aa3b0, 4);
+    spike.position.y = 0.45;
+    const paper = box(0.5, 0.62, 0.02, 0xf4f4f6, { rough: 0.9 });
+    paper.position.set(0, 0.95, 0.01);
+    const stamp = box(0.36, 0.1, 0.01, 0xff4d5a, { emissive: 0x8a1b25, emissiveIntensity: 0.9 });
+    stamp.position.set(0, 1.12, 0.02);
+    const group = new THREE.Group();
+    group.add(spike, paper, stamp);
+    group.position.set(pos.x, 0, pos.z);
+    group.rotation.y = rand(0, Math.PI * 2);
+    this.level.group.add(group);
+
+    const ring = new THREE.Mesh(new THREE.RingGeometry(def.ticketRadius * 0.92, def.ticketRadius, 32),
+      new THREE.MeshBasicMaterial({ color: 0xff4d5a, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(pos.x, 0.05, pos.z);
+    this.level.group.add(ring);
+
+    const id = nextId();
+    const ticket = { id, pos: pos.clone().setY(0), radius: def.ticketRadius, ttl: def.ticketTtl, group, ring, tick: 0 };
+    this.tickets.push(ticket);
+    // 1 HP, no footprint collider — you shoot the paperwork, you don't vault it
+    this.level.destructibles.push({
+      id, kind: 'ticket', pos: new THREE.Vector3(pos.x, 0.95, pos.z),
+      radius: 0.6, hp: 1, group, dead: false, collider: null,
+    });
+    this.audio.sfx('slip', { vol: 0.7 });
+    this.hud.toast('📌 COMPLAINT FILED — abilities offline inside', 'warn');
+    return ticket;
+  }
+
+  ticketCount() { return this.tickets.length; }
+
+  /** Shared by the expiry timer and by shooting it. */
+  removeTicket(id) {
+    const i = this.tickets.findIndex((t) => t.id === id);
+    if (i < 0) return null;
+    const t = this.tickets[i];
+    this.tickets.splice(i, 1);
+    this.level.group.remove(t.ring);
+    t.ring.geometry.dispose();
+    t.ring.material.dispose();
+    return t;
+  }
+
+  updateTickets(dt) {
+    for (let i = this.tickets.length - 1; i >= 0; i--) {
+      const t = this.tickets[i];
+      t.ttl -= dt;
+      if (t.ttl <= 0) {
+        const d = this.level.destructibles.find((dd) => dd.id === t.id);
+        if (d && !d.dead) { d.dead = true; this.level.group.remove(d.group); }
+        this.removeTicket(t.id);
+        continue;
+      }
+      t.ring.material.opacity = 0.25 + Math.sin(this.runTime * 4) * 0.12;
+      t.tick -= dt;
+      if (t.tick > 0) continue;
+      t.tick = 0.5;
+      for (const p of this.livePlayers()) {
+        if (dist2D(p.pos, t.pos) > t.radius) continue;
+        p.applyShock?.(0.7);            // refreshed while you stand in it
+        if (p === this.player) p.systemsOfflineFeedback?.();
+      }
+      // the staff are being taken care of — killing the ticket stops the drip
+      for (const e of this.enemies) {
+        if (e.dead || e.def.boss || dist2D(e.pos, t.pos) > t.radius) continue;
+        e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.02);
       }
     }
   }
@@ -1562,7 +1692,9 @@ export class Game {
     if (bdef.mini) {
       this.miniBoss = null;
       this.miniBossDone = true;
-      this.hud.announce('FLOOR LEAD — TERMINATED · ELEVATOR RESUMING', 2.6);
+      this.hud.announce(this.eventState === 'charging'
+        ? 'FLOOR LEAD — TERMINATED · ELEVATOR RESUMING'
+        : 'FLOOR LEAD — TERMINATED · THE CALL WILL GO UNCONTESTED', 2.6);
       this.audio.sfx('victory', { vol: 0.5 });
       this.addBudget(30);
       return;
@@ -1603,7 +1735,7 @@ export class Game {
     if (this.eventState !== 'idle') return;
     this.eventState = 'charging';
     this.eventProgress = 0;
-    this.lockdown = { wave: 0, waves: 3, t: 2.2 };
+    this.lockdown = { wave: 0, waves: WAVES.lockdown.waves, t: WAVES.lockdown.firstDelay };
     this.miniBoss = null;
     this.miniBossDone = false;
     this.director.setEventMode(true);
@@ -1634,27 +1766,30 @@ export class Game {
     const inside = this.enemies.filter((e) =>
       !e.dead && !e.def.boss && this.level.roomAt(e.pos.x, e.pos.z) === room).length;
     if (L.t <= 0 && L.wave < L.waves) {
+      const W = WAVES.lockdown;
       L.wave++;
-      const size = Math.round((5 + this.director.coeff * 3) * (1 + L.wave * 0.3));
+      const size = Math.round((W.sizeBase + this.director.coeff * W.sizePerCoeff) * (1 + L.wave * W.sizePerWave));
       this.hud.announce(`WAVE ${L.wave} / ${L.waves}`, 1.6, true);
       this.audio.sfx('horde', { vol: 0.7 });
       this.director.queueHorde(size);
-      if (L.wave >= 2) {
+      if (L.wave >= W.specialFromWave) {
         const sp = this.level.findSpawnPoint(this.player.pos, 7, 22, null, room);
         this.spawnEnemy(choose(this.floorDef.specials ?? ['gossip', 'complainer', 'micromanager', 'motivator']), sp, {});
       }
-      L.t = 16;
+      L.t = W.interval;
     } else if (L.wave >= L.waves && inside <= 4 && inside > 0) {
       // panic rule: last stragglers sprint so waves end on a crescendo, not a mop
       for (const e of this.enemies) if (!e.dead && !e.def.boss) e.rallyT = Math.max(e.rallyT ?? 0, 0.4);
     }
   }
 
-  spawnMiniBoss() {
+  spawnMiniBoss(inRoom = null) {
     const key = this.floorDef.miniBossKey;
     if (!key || !BOSS_DEFS[key]) { this.miniBossDone = true; return; }
     const def = BOSS_DEFS[key];
-    const sp = this.level.findSpawnPoint(this.player.pos, 9, 18, null, this.level.arenaRoom);
+    const room = inRoom ?? this.level.arenaRoom;
+    const near = inRoom ? _v1.set(room.cx, 0, room.cz) : this.player.pos;
+    const sp = this.level.findSpawnPoint(near, inRoom ? 2 : 9, inRoom ? 9 : 18, null, room);
     const mb = this.spawnEnemy(key, sp, {});
     if (!mb) { this.miniBossDone = true; return; }
     this.miniBoss = mb;
@@ -1664,6 +1799,25 @@ export class Game {
     this.audio.sfx('roar', { vol: 0.8 });
     this.shake(0.5);
     if (this.net.connected && this.net.isHost) this.net.sendEvent({ k: 'boss', key });
+  }
+
+  /**
+   * v4 floors give the FLOOR LEAD a private office in the labyrinth. Walking
+   * in starts the fight on YOUR terms — kill them here and the elevator call
+   * later runs without its 90% gate.
+   */
+  updateLairTrigger() {
+    const lair = this.level.lairRoom;
+    if (!lair || this._lairTriggered || this.miniBossDone || this.miniBoss || this.activeBoss) return;
+    for (const p of this.livePlayers()) {
+      if (p.pos.x > lair.x0 && p.pos.x < lair.x1 && p.pos.z > lair.z0 && p.pos.z < lair.z1) {
+        this._lairTriggered = true;
+        this.hud.announce('🚪 YOU ARE INTERRUPTING A PRIVATE MEETING', 2.6, true);
+        this.audio.sfx('alarm', { vol: 0.5 });
+        this.delayed(0.7, () => { if (!this.miniBossDone && !this.miniBoss) this.spawnMiniBoss(lair); });
+        break;
+      }
+    }
   }
 
   updateElevatorEvent(dt) {
@@ -2181,7 +2335,6 @@ export class Game {
       case 'pdmg': this.player?.damage(e.v, _v1.set(e.x, 0, e.z)); break;
       case 'pstun': this.player?.applyStun?.(e.v, _v1.set(e.x, 0, e.z)); break;
       case 'pshock': this.player?.applyShock?.(e.v); break;
-      case 'latch': this.hud.setLatch(!!e.on); break;
       case 'boss': { const d = BOSS_DEFS[e.key]; if (d) { this.hud.showBoss(d.name, d.title); this.audio.sfx('roar'); } break; }
       case 'bosshp': this.hud.updateBoss(e.f); break;
       case 'bossdead': this.hud.hideBoss(); this.eventState = 'open'; this.level?.setDoors(this.level.elevator, true); break;
@@ -2203,7 +2356,7 @@ export class Game {
   applyEnemySnapshot(list, KEYS, ELITES) {
     const seen = new Set();
     for (const rec of list) {
-      const [id, keyIdx, x, y, z, yaw, hpFrac, eliteIdx] = rec;
+      const [id, keyIdx, x, y, z, yaw, hpFrac, eliteIdx, casting] = rec;
       seen.add(id);
       let e = this.enemyById.get(id);
       if (!e) {
@@ -2223,6 +2376,7 @@ export class Game {
       e.netTarget.set(x, y, z);
       e.netYaw = yaw;
       e.hp = hpFrac * e.maxHp;
+      e.casting = !!casting;   // drives her broadcast pose on the guest's screen
     }
     // anything we have that the host doesn't → it died
     for (const e of this.enemies) {

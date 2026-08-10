@@ -10,6 +10,9 @@
 > **3D characters: generative services are out.** Meshy was piloted 2026-08-07 and
 > rejected on art quality — the packet, scripts and generated GLBs were removed.
 > User supplies T-pose character designs; the 3D approach is being chosen (see v0.7).
+> **Distribution (decided 2026-08-07):** two SKUs, one codebase — a free cut-down
+> web build (the funnel: itch/portals, rewarded ads, WebRTC P2P co-op) feeding a
+> full-fat paid Steam EA (the product). The contract is §1.
 
 ---
 
@@ -27,23 +30,82 @@ beyond that is upside, not promise.
 
 ---
 
-## 1. Version plan
+## 1. Two SKUs, one codebase — distribution & money
+
+The engine is already pure web tech (Three.js + Vite) — `npm run build` IS a
+browser game. So the same repo ships twice, and the free one sells the paid one:
+
+| | **J.O.B WEB** — the funnel | **J.O.B on Steam** — the product |
+|---|---|---|
+| Where | itch.io, Newgrounds, CrazyGames/Poki, GameDistribution syndication | Steam Early Access (Electron), $4–5 launch price |
+| Content | LOBBY + FINANCE, 3 starter chassis, trimmed module pool | the whole tower, all 10 classes, full module/wardrobe pools, elder game |
+| Co-op | WebRTC P2P, room codes, $0 servers | Steam SDR lobbies (free, NAT-proof, IPs hidden) |
+| Money | rewarded ads via portal SDKs + itch tips | the actual revenue |
+| Job | harvest wishlists, validate fun, recruit playtesters | convert wishlists on launch day, then let the algorithm work |
+
+**Laws of the funnel** (each exists because skipping it kills the pipeline):
+
+1. **Steam page first.** The "Coming Soon" page goes live BEFORE any web build —
+   a web player without a wishlist button to click is wasted marketing. Every
+   portal→Steam link carries UTM tags so we know which portal converts.
+2. **A hook, not a cripple.** The web SKU is the full first-run experience at
+   real quality — then a hard, funny wall: the elevator past FINANCE is locked.
+   *"Floors 3+ require a promotion. Apply on Steam."* Wishlist CTA on the title
+   screen, the Performance Review screen, and the wall. Cut content, never quality.
+3. **Web scope is cut-safe-final**: LOBBY + FINANCE + their bosses, 3 chassis
+   (e.g. INTERN / JANITOR / IT SUPPORT — one per range band, all original kits),
+   capped module pool. It never grows. Gates are data flags in `/data/*.json`,
+   not a fork.
+4. **$0 infrastructure, forever.** Portals host the files; web multiplayer is
+   WebRTC P2P (public STUN, no TURN) with a free-tier signaling channel
+   (Supabase/Firebase realtime room codes). No dedicated servers on any SKU —
+   the Steam build rides Valve's SDR (STEAM.md).
+5. **Ads obey pillar 4** *(D 8.3 — aspiration-only, no hafta)*. Rewarded-only and
+   diegetic ("MANDATORY TRAINING VIDEO"), spent on bonuses — draft reroll /
+   Severance bonus / one elevator continue — never required progression.
+   Interstitials only between runs; mid-run is sacred. The Steam build ships
+   zero ad code.
+6. **Launch is wishlist-gated.** The EA date is announced once the funnel banks
+   ≥5k wishlists (7k+ is Popular-New-Releases territory); until then the web SKU
+   keeps cooking. After launch the web build stays up as the permanent demo —
+   "NOW HIRING on Steam" — on bugfix-only maintenance.
+
+---
+
+## 2. Version plan
 
 Effort: S = days, M = 1–2 weeks, L = 2–4 weeks (part-time adjusted). Each version ends
 with a tagged playable build + a written playtest question list *(D 9.4)*.
 
-### v0.2 — "FOUNDATIONS" (engineering multiplier) — M
-*The single highest-leverage step of the whole EA period (D Top-10 #1).*
-- [ ] Externalize ALL tuning to hot-reloadable JSON: spawn tables, director curves,
-      class stats, item/module tables, wave compositions (`/data/*.json`).
-- [ ] In-game debug panel (` key): floor select, grant loot, force events, spawn any
-      enemy, time-scale override, god mode, telemetry overlay.
-- [ ] Local telemetry from day one *(D 9.5)*: per-run JSON log — class, drafts offered/
-      taken, per-floor time, death cause+position, combo peaks, KPIs. Ship-ready for
-      opt-in upload later.
-- [ ] Toy-test sandbox floor (no objectives, dense destructibles, respawning dummies).
-- **Gate:** balance change = JSON edit + hot reload, no rebuild. 10-minute sandbox
-  session is genuinely fun or v0.3 waits for a feel pass.
+### ✅ v0.2 — "FOUNDATIONS" (engineering multiplier) — shipped 2026-08-07
+*The single highest-leverage step of the whole EA period (D Top-10 #1). The
+debug-panel and telemetry halves had already landed inside v0.35; the JSON
+externalization and the sandbox floor closed it out.*
+- [x] Tuning externalized to hot-reloadable JSON in `/data/`: TUNE + difficulty
+      stages (`tune.json` / `difficulty.json`); all 7 floors with spawn tables
+      and palettes (`floors.json` — the cubicle-color patch is folded in);
+      enemy + elite tables (`enemies.json`); boss tables (`bosses.json`);
+      throwables / consumables / rarities / wearables (`gear.json`); class
+      scalars + ability cd/mag/reload (`classes.json`); module tiers, passive
+      values, boss cards and the roll/pity curve (`modules.json`);
+      lockdown-wave + horde compositions (`waves.json`). Each domain module
+      hot-applies its JSON via Vite HMR **in place** — identities preserved
+      (`src/game/dataUtils.js`), so a balance edit lands in a running dev game
+      with no rebuild. Hex colors travel as `"0x..."` strings.
+      `tests/data.test.js` is the referential-integrity net.
+- [x] In-game debug panel (shipped in v0.35 — tweakpane, ` key).
+- [x] Local telemetry (shipped in v0.35 — `src/core/telemetry.js`).
+- [x] Toy-test sandbox floor: **THE TRAINING FLOOR** (`SANDBOX_FLOOR`, floor
+      index −1, outside the tower rotation). One open room, dense breakables,
+      six self-respawning CRASH-TEST TEMP dummies on marked pads; director,
+      KPIs and the elevator are all off. Debug panel → "Enter SANDBOX floor".
+- **Gate met (mechanically):** balance change = JSON edit + hot reload, no
+  rebuild. The 10-minute "genuinely fun" half of the gate is the user's call
+  after a sandbox session.
+- Still JS, deliberately (v0.2.x candidates): numbers inside class /
+  special-module closures, the `computeItemMods` / `upgradeMods` formula
+  blocks, director pacing constants + pressure-model weights, destructible HP
+  at `level.js` furnish call sites.
 
 ### ✅ v0.2.5 — "PHYSICS & POCKETS" (shipped early, pulled forward from v0.5/v0.7)
 - [x] **Lego death physics**: every enemy/boss/player shatters into tumbling body
@@ -114,6 +176,89 @@ department you're on decides how you die.*
       strip — plus extinguisher, boxing gloves, tesla wand, clipboard, ring
       light and selfie-stick props.
 
+### ✅ v0.37 — "THE LABYRINTH" (shipped 2026-08-07)
+*User-directed: floors must feel LONG and BIG like Risk of Rain, corridors must
+be an actual labyrinth with pocket subsections and interconnections, furniture
+must read as a real office — and the floor lead should be meetable before the
+elevator call.*
+
+- [x] **Floor generator v4** (`src/game/floorplan.js` — pure and seeded, so
+      `tests/floorplan.test.js` hammers 240 generated plans in CI). A
+      double-loaded office lattice: the core, two full-depth corridor spines,
+      two cross-corridors, and eight departmental blocks subdivided into rooms
+      and pocket dead-ends. Doorways are then SEALED into solid wall by a
+      seeded maze cut and BFS-repaired until every room is reachable — so every
+      floor is a different labyrinth with loops, long routes, shortcuts and
+      dead ends. ~30 rooms / 8 corridors per floor (was ~10 rooms total);
+      plates grown from 58–70u to 96–112u across.
+- [x] **THE LAIR** — the floor lead keeps a private office in an outer corner
+      (one door, red accent light, warning sign, their gold chest). Walking in
+      starts the fight early (*"YOU ARE INTERRUPTING A PRIVATE MEETING"*), and
+      killing them there removes the 90% elevator gate later — meet them on
+      your terms in the maze, or on theirs at the holdout. The cross-links also
+      let a co-op team meet up well before the core.
+- [x] **Office-feel furnishing v2** — orientation and grouping are structural,
+      randomness only jitters: aligned desk ROWS with chairs tucked in, or
+      cubicle farms on a grid; boardroom tables with seating down both sides
+      and a presentation wall; RECORDS shelving aisles with slip-through gaps;
+      lounge kitchenette lines flush to the wall + a seating circle; corridor
+      cabinets/copiers against the walls with waiting benches; twin reception
+      desks facing the core elevator.
+- [x] Mob look fixes pulled forward from v0.38: the PAPERLING is now readably a
+      walking stack of expense reports (sheet slabs, red-tape binding, a
+      flapping top-sheet jaw, bent-paperclip legs, dark dot eyes) and the
+      zombie look is gone — drones are BURNT-OUT commuters (heavy-lidded eyes
+      with bags, slumped arms, briefcase in hand); nothing glows red anymore.
+- Balance watch: bigger plates mean more chests/utilities per floor — per-room
+  chest odds are already halved; watch money inflation in run telemetry.
+
+### ✅ v0.38 — "STAFF REBRAND" (unique specials) — shipped 2026-08-07
+*User-directed: the specials were 1:1 L4D ports (Complainer=Spitter,
+Micromanager=Jockey, Gossip≈Boomer, Karen=Witch, Auditor=Tank). The borrowed
+mechanics are gone; every special now resolves through an office-native verb
+you answer a specific way. `tests/specials.test.js` locks the designs in — it
+fails if any enemy goes back to a borrowed AI kernel.*
+
+- [x] **THE MICROMANAGER** — the Jockey ride is deleted (and with it the whole
+      latch/mash subsystem, ~60 lines across 6 files). He now BOOKS you: line
+      of sight starts a 3s *"MEETING IN 3…2…1"* countdown on your status strip
+      with a per-second calendar ping. Break LOS, dash, outrun his 21m cancel
+      range, or kill him and it dies. Let it land and you are pinned for 1.2s —
+      **but not stunned**: every weapon and ability still fires, because a
+      special that takes the mouse away is not counterplay. Verified live:
+      countdown fires, booking roots without `stunT`, and both cancels work.
+- [x] **THE COMPLAINER** — the acid puddle is gone. He files complaint TICKETS
+      that stick where they land: inside one your abilities are silenced
+      (rolling shock refresh) and the staff standing in it are slowly healed.
+      The ticket is a **1 HP piece of paper registered in the normal
+      destructible list**, so every existing damage path already knows how to
+      bin it — shoot the paperwork and the silence lifts immediately. Hard cap
+      of 3 on the floor. Verified live end to end.
+- [x] **THE GOSSIP** — no longer a suicide bomber. She holds at ~12m and openly
+      starts a RUMOR CALL: ringtone, an expanding ring that grows with the cast,
+      4 seconds. Kill her mid-call and **the horde never comes** (verified: 0
+      queued); let it complete and the floor is rerouted onto everyone in
+      earshot (verified: 10 queued) — and she survives to call again. The
+      cast flag rides the co-op snapshot so guests see the tell too, and the
+      AI LOD keeps casters hot so a 5 Hz tick can never eat your interrupt.
+- [x] **KAREN** — the don't-startle Witch is now a don't-get-filmed problem.
+      Being within 9m *and in her line of sight* raises the phone (both hands,
+      blinking REC dot); 2.2s in frame provokes her. Step out of the shot and
+      the recording is discarded. You can now defuse her with a wall.
+- [x] **THE AUDITOR** — no longer just a bigger health bar. He opens a floor
+      audit and issues DEMANDS on a timer (*"5 TERMINATIONS, 10s"*). Meet it
+      and he must stop and accept the paperwork — staggered 2.2s and +35%
+      vulnerable while he reads. Miss it and he files a FINDING: +20% damage,
+      +8% speed, capped at 4 *(D 1.4: hard caps, always)*.
+- [x] Basic-mob behaviour pass: paperlings scatter-hop in bursts at an angle
+      off the direct line instead of tracking you dead-straight; drones stop to
+      check their phone on a timer — a telegraphed, readable free-hit window.
+- [x] Bot teammates understand all of it: they drop everything to interrupt a
+      rumor call (×4 threat) or to kill a Micromanager who has someone on the
+      clock (×3), and a booked bot keeps firing while rooted, exactly like you.
+- **Gate (to measure in the next playtest):** a playtester who knows L4D cannot
+  name the donor special for any J.O.B special in an exit interview.
+
 ### ✅ v0.35 — "ENGINE HARDENING" (shipped)
 *Adopted from the architecture review. Full contract: [ENGINE.md](ENGINE.md).*
 
@@ -176,7 +321,7 @@ tiers; Electron context isolation for the steamworks bridge; roster freeze
 *User request: 2 melee / 2 short / 2 long, passive + special slots filled by loot.*
 
 The chassis/slot split landed **additively**: no playable class was removed, so the
-roster is 10 (the original 8 plus the two hires the §2 grid was missing). Every
+roster is 10 (the original 8 plus the two hires the §3 grid was missing). Every
 class is now a chassis — fixed LMB primary + fixed RMB signature that loot can
 never replace — with two loot-filled slots on top.
 
@@ -278,6 +423,40 @@ never replace — with two loot-filled slots on top.
       ever beat the CEO *(D 7.3)*.
 - [ ] In-world special intros: HR memos, PA warnings, hazard posters *(D 7.6)*.
 
+### v0.85 — "UNPAID INTERNSHIP" (the free web SKU) — M
+*The §1 funnel made real. Ships only after v0.8 onboarding exists, because
+portal traffic is the coldest audience this game will ever meet.*
+- [ ] `BUILD_TARGET=web|steam` flag; demo gates driven from `/data` flags:
+      LOBBY + FINANCE + their bosses, 3 starter chassis, trimmed module pool.
+      Locked content is stripped from the bundle, not hidden in it.
+- [ ] **WebRTC transport** added to `MultiplayerTransport` (the net layer
+      already isolates connect/send/onmessage, so this is contained):
+      `RTCDataChannel` P2P, public STUN, free-tier signaling via room codes —
+      replaces "run server.js and port-forward" for web players. Host quits =
+      run ends, same as the relay today. No TURN unless telemetry proves the
+      pair-failure rate demands it, and then only on a free quota.
+- [ ] **The wall + the funnel**: locked elevator past FINANCE (*"Floors 3+
+      require a promotion — apply on Steam"*), wishlist buttons on title /
+      Performance Review / wall, UTM-tagged per portal.
+- [ ] **Portal integration**: CrazyGames SDK first (open submission), Poki
+      application in parallel (curated); itch.io page (tips on, ads off) +
+      Newgrounds; optionally GameDistribution/GameMonetize for long-tail
+      syndication. Per portal: pause/mute during ads, audio-autoplay gesture
+      gate, iframe + COOP/COEP quirks verified against Rapier WASM.
+- [ ] **Rewarded ads** per §1 law 5: MANDATORY TRAINING VIDEO framing; draft
+      reroll / Severance bonus / one elevator continue. Interstitials only
+      between runs. Zero ad code in the Steam build.
+- [ ] **Load budget**: portal cold-load → title screen <15s on median portal
+      hardware; code-split floors, compressed GLBs (the optimizer already
+      proved 63.7 → 15.3 MB), lazy-load everything past LOBBY.
+- [ ] Telemetry: web funnel events — session start, wall hit, wishlist click,
+      ad opt-in rate, WebRTC connect success — feeding the §5 risks and the
+      v0.9 launch-timing gate.
+- **Gate:** a stranger on portal hardware reaches the FINANCE wall in one
+  sitting without help; two-household WebRTC co-op clears LOBBY→FINANCE with no
+  port forwarding; wishlist clicks tracked end-to-end; zero ads during live
+  runs; portal SDK QA passed.
+
 ### v0.9 — "IPO PREP" (retention, Steam, hardening) — L
 - [ ] **Performance Review end screen** *(D 8.1, 8.2 — the retention engine and our
       theme's perfect feature)*: letter grades vs personal bests, near-miss framing
@@ -293,6 +472,12 @@ never replace — with two loot-filled slots on top.
       crash telemetry; soak tests.
 - [ ] Closed playtest via Steam Playtest: two cohorts (RoR/L4D veterans + novices) with
       separate funnels, standing repeat cohort for run-#20 truth *(D 9.4)*.
+      Recruiting rides the v0.85 funnel: a *"want floors 3+ early? join the
+      Steam Playtest"* CTA at the web wall feeds both cohorts.
+- [ ] **Launch timing is wishlist-gated (§1 law 6)**: announce the EA date only
+      after the web funnel banks ≥5k wishlists; wishlist velocity, per-portal
+      conversion and web-telemetry churn points are standing inputs to every
+      v0.9 decision.
 
 ### v1.0.0 — "GRAND OPENING" (EA launch) — M
 - [ ] Finance floor at TRUE ship quality first (vertical slice), then propagate
@@ -304,10 +489,13 @@ never replace — with two loot-filled slots on top.
       known unfair-death reports in final playtest round.
 - [ ] Post-launch cadence commitment: one patch per 2–4 weeks, each answering ONE
       measured churn point, public "problem heard → change made" changelog *(D 9.5, 9.6)*.
+- [ ] Web SKU flips to perpetual-demo mode on launch day: *"NOW HIRING — the
+      full tower is on Steam"* takeover banner + launch-discount messaging on
+      every portal build; bugfix-only maintenance from here on (§1 law 6).
 
 ---
 
-## 2. Archetype spec (v0.4) — the six new hires
+## 3. Archetype spec (v0.4) — the six new hires
 
 Function-first grid *(D 4.1)*; each: signature ability (never replaced by loot),
 three-word identity, one designed weakness, distinct demanded skill *(D 4.2, 4.3)*.
@@ -340,7 +528,7 @@ Build identity = chassis × modules × gear × drafts.
 
 ---
 
-## 3. Production tracks (run in parallel with versions)
+## 4. Production tracks (run in parallel with versions)
 
 | Track | Owner | Packet | Feeds |
 |---|---|---|---|
@@ -348,13 +536,14 @@ Build identity = chassis × modules × gear × drafts.
 | 3D characters/gear/props | User supplies T-pose designs; build approach TBD (no generative services) | — | v0.7 |
 | Design tuning & balance | Claude + telemetry | /data JSON + digest | every version |
 | Playtests | User + cohorts | question lists per version | gates |
+| Web funnel (portal builds, SDKs, ads, wishlist CTAs) | Claude + user (portal/Steam accounts) | §1 + v0.85 | v0.9 launch timing, v1.0 store traffic |
 
 **3D note:** Meshy was piloted and rejected — output was smooth, washed-out and
 off-brief. No generative 3D services. User provides T-pose character designs.
 
 ---
 
-## 4. Risk register *(D 9.2 — greybox-test each before art money)*
+## 5. Risk register *(D 9.2 — greybox-test each before art money)*
 
 | # | Risk | Test | Fallback |
 |---|---|---|---|
@@ -364,12 +553,18 @@ off-brief. No generative 3D services. User provides T-pose character designs.
 | 4 | Self-hosted co-op friction kills session starts | measure lobby completion rate | prioritize Steam SDR earlier |
 | 5 | Character art never reaches the target look | v0.7 pilot (2 models) before any batch | keep upgraded procedural rigs; ship on silhouette, not detail |
 | 6 | Solo dev bandwidth | 50% rule already applied | cut-safe list is the contract |
+| 7 | Free web SKU cannibalizes Steam sales | watch wishlist CTR vs bounce at the wall; genre precedent (Vampire Survivors / Brotato funnels) says demos sell | tighten the wall (fewer classes/modules); push Steam-only value harder (full tower, elder game, SDR co-op, cloud saves) |
+| 8 | Portal rejection / junk ad eCPM makes the web SKU earn nothing | CrazyGames first (open submission); Poki in parallel; ads are pocket money, wishlists are the KPI | ship on itch + Newgrounds regardless; syndicate via GameDistribution; drop ads, keep the funnel |
+| 9 | WebRTC P2P fails for too many home-network pairs without TURN | connect-success telemetry from v0.85 day one | free-quota TURN, "other player hosts" retry, or web co-op demoted to same-network only — Steam SDR unaffected |
 
 ---
 
-## 5. Immediate next actions (this week)
+## 6. Immediate next actions (this week)
 
-1. **v0.2 FOUNDATIONS build** — JSON tuning + debug panel + telemetry + sandbox floor.
+1. ✅ ~~v0.2 FOUNDATIONS~~, ✅ ~~v0.37 THE LABYRINTH~~ and ✅ ~~v0.38 STAFF
+   REBRAND~~ — all shipped 2026-08-07. Next dev block: a playtest pass on the
+   three of them together (the labyrinth's pacing at the new plate size, the
+   sandbox fun-gate, and the L4D-blind-test gate), then v0.5 DRESS CODE.
 2. Codex starts **Tier 1** of the asset pack (logo + HUD kit).
 3. Character art: pick the build approach, then pilot **BRUISER** + **SECURITY GUARD**
    from the user's T-pose designs before committing to the full roster.
@@ -377,3 +572,9 @@ off-brief. No generative 3D services. User provides T-pose character designs.
    clumps before v0.3 *(Killick's beat chart)*.
 5. First scripted playtest with the question list: "Do players detour for KPIs?
    Does anyone pick melee and survive? Which death felt unfair?"
+6. **Open the Steam partner account and put the "Coming Soon" page up early** —
+   $100 (recouped once the game passes $1k revenue), and wishlists compound
+   with calendar time. The page must exist before any v0.85 build goes public
+   (§1 law 1).
+7. Create the CrazyGames developer account and read their SDK/QA checklist now,
+   so v0.85's pause/mute/ad hooks are built to spec the first time.

@@ -79,6 +79,7 @@ export class Projectiles {
       aoe: opts.aoe ?? 0,
       knockback: opts.knockback ?? 0,
       puddle: opts.puddle ?? null,        // hazard left on ground impact
+      onLand: opts.onLand ?? null,        // callback(pos) on impact — filed tickets
       owner: opts.owner ?? null,          // player object for proc credit
       cosmetic: opts.cosmetic ?? false,   // client-side visual only
       spin: opts.spin ?? 0,
@@ -243,6 +244,7 @@ export class Projectiles {
       if (p.slowSplat) {
         game.addSlowZone({ pos: p.pos.clone().setY(0), ...p.slowSplat });
       }
+      if (p.onLand) p.onLand(p.pos.clone().setY(0));
     }
     const colors = { coffee: 0x6b4423, orb: 0xffc23f, brand: 0xff2f9e, book: 0x7a4c28 };
     game.effects.burst(p.pos, { color: colors[p.kind] ?? 0xd8dde6, n: p.aoe > 0 ? 14 : 5, speed: p.aoe > 0 ? 7 : 3, size: 0.1, ttl: 0.4 });

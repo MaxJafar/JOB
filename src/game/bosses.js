@@ -1,92 +1,42 @@
 // ============ department heads & the C.E.O. ============
 import * as THREE from 'three';
+import bossesData from '../../data/bosses.json';
 import { Enemy, ENEMY_DEFS } from './enemies.js';
 import { makePerson, makeHeldItem, animateWalk } from './characters.js';
 import { mat, box, cyl } from './props.js';
 import { rand, dist2D, clamp } from '../core/utils.js';
+import { parseHexData, deepApply, announceDataReload } from './dataUtils.js';
 
 const _v1 = new THREE.Vector3();
 
-export const BOSS_DEFS = {
-  // ---------- department heads: one per floor, arrives in the elevator ----------
-  security: {
-    name: 'GUS DUTY', title: 'HEAD OF SECURITY', hp: 1750, dmg: 20, speed: 3.9, radius: 1.0,
-    centerY: 1.6, xp: 120, money: 240, scale: 1.7,
-    look: { skin: 0xc9976b, shirt: 0x2e3d59, pants: 0x1e2637, tie: 0x11151d, accessories: ['sunglasses', 'cap'], hair: 0x222222, weapon: 'phone', build: 'bulky' },
-  },
-  chro: {
-    name: 'PATRICIA VOLKOV', title: 'HEAD OF PEOPLE', hp: 2000, dmg: 21, speed: 2.9, radius: 1.05,
-    centerY: 1.6, xp: 140, money: 280, scale: 1.7,
-    look: { skin: 0xecc3a2, shirt: 0xb7a2c9, pants: 0x4a4457, tie: null, accessories: ['bun', 'glasses', 'lanyard'], hair: 0x8a8f98, weapon: 'clipboard' },
-  },
-  cto: {
-    name: 'RAJ SINGULARITY', title: 'HEAD OF ENGINEERING', hp: 2400, dmg: 23, speed: 3.4, radius: 1.0,
-    centerY: 1.6, xp: 155, money: 300, scale: 1.72,
-    look: { skin: 0xb07a4e, shirt: 0x1f242e, pants: 0x171a21, tie: null, accessories: ['visor', 'beanie'], hair: 0x1a1a1a, weapon: 'teslawand' },
-  },
-  cfo: {
-    name: 'DEREK KROHN', title: 'HEAD OF FINANCE', hp: 2600, dmg: 24, speed: 3.1, radius: 1.0,
-    centerY: 1.6, xp: 180, money: 340, scale: 1.75,
-    look: { skin: 0xd8b28f, shirt: 0x39414f, pants: 0x2a303c, tie: 0xd4aa30, accessories: ['glasses'], hair: 0x555a63, weapon: 'ledger' },
-  },
-  cmo: {
-    name: 'BRANDI SPARK', title: 'HEAD OF MARKETING', hp: 2900, dmg: 22, speed: 3.6, radius: 1.0,
-    centerY: 1.6, xp: 200, money: 390, scale: 1.75,
-    look: { skin: 0xe8bc9d, shirt: 0xff4fa3, pants: 0x3a2f4d, tie: null, accessories: ['sunglasses', 'bun'], hair: 0xe0559a, weapon: 'megaphone' },
-  },
-  vp: {
-    name: 'CHAD MAVERICK', title: 'HEAD OF SALES', hp: 3400, dmg: 26, speed: 4.0, radius: 1.0,
-    centerY: 1.6, xp: 240, money: 460, scale: 1.8,
-    look: { skin: 0xdba577, shirt: 0x3a5f8a, pants: 0x22334a, tie: 0xff9b2d, accessories: ['headset'], hair: 0x30231a, weapon: 'phone' },
-  },
-  ceo: {
-    name: 'THE C.E.O.', title: 'CHIEF EXECUTIVE OVERLORD', hp: 7000, dmg: 30, speed: 3.0, radius: 1.25,
-    centerY: 2.0, xp: 500, money: 1000, scale: 2.3,
-    look: { skin: 0xcfae8e, shirt: 0x16161c, pants: 0x101014, tie: 0xffd23f, accessories: ['crown'], hair: 0xd9d9d9, weapon: 'gavel' },
-  },
+// Boss stat tables live in /data/bosses.json (v0.2 FOUNDATIONS). Heads are one
+// per floor and arrive in the elevator; floor leads (mini: true) are roughly a
+// third of a head's health, two attacks, no phase flip — they make the holdout
+// a fight with a name on it instead of a timer.
+parseHexData(bossesData);
+export const BOSS_DEFS = bossesData.defs;
 
-  // ---------- floor leads: mini-bosses that override the elevator call ----------
-  // Roughly a third of a head's health, two attacks, no phase flip. They exist
-  // to make the holdout a fight with a name on it instead of a timer.
-  concierge: {
-    mini: true, name: 'RANDALL PEET', title: 'FRONT DESK SUPERVISOR', hp: 620, dmg: 16, speed: 4.4,
-    radius: 0.85, centerY: 1.4, xp: 48, money: 90, scale: 1.35,
-    look: { skin: 0xb5804f, shirt: 0x2e3d59, pants: 0x1e2637, tie: 0xc59d45, accessories: ['cap', 'lanyard'], hair: 0x2c2c2c, weapon: 'clipboard' },
-  },
-  notary: {
-    mini: true, name: 'MARGE PENN', title: 'SENIOR NOTARY', hp: 780, dmg: 15, speed: 2.6,
-    radius: 0.95, centerY: 1.4, xp: 54, money: 100, scale: 1.4,
-    look: { skin: 0xe4bb9c, shirt: 0x9fb8c9, pants: 0x4a4457, tie: null, accessories: ['bun', 'glasses'], hair: 0x8a8f98, weapon: 'clipboard' },
-  },
-  devops: {
-    mini: true, name: 'K. BERNETTI', title: 'DEVOPS LEAD', hp: 700, dmg: 15, speed: 4.0,
-    radius: 0.85, centerY: 1.4, xp: 58, money: 105, scale: 1.35,
-    look: { skin: 0xc79a72, shirt: 0x2b3240, pants: 0x1d2129, tie: null, accessories: ['visor', 'headset'], hair: 0x2a1c10, weapon: 'teslawand' },
-  },
-  controller: {
-    mini: true, name: 'IRENE COST', title: 'FINANCIAL CONTROLLER', hp: 860, dmg: 17, speed: 3.0,
-    radius: 0.9, centerY: 1.4, xp: 64, money: 120, scale: 1.4,
-    look: { skin: 0xd8b28f, shirt: 0x4d5a68, pants: 0x2a303c, tie: 0x27ae60, accessories: ['glasses', 'bun'], hair: 0x6b4a2c, weapon: 'ledger' },
-  },
-  evangelist: {
-    mini: true, name: 'TREVOR HYPE', title: 'BRAND EVANGELIST', hp: 820, dmg: 16, speed: 4.6,
-    radius: 0.8, centerY: 1.4, xp: 68, money: 130, scale: 1.32,
-    look: { skin: 0xdba577, shirt: 0xff4fa3, pants: 0x1b1420, tie: null, accessories: ['sunglasses', 'beanie'], hair: 0x35e0c8, weapon: 'selfiestick' },
-  },
-  accountexec: {
-    mini: true, name: 'BIFF RANDALL', title: 'SENIOR ACCOUNT EXEC', hp: 950, dmg: 19, speed: 4.8,
-    radius: 0.85, centerY: 1.4, xp: 76, money: 145, scale: 1.42,
-    look: { skin: 0xd8a166, shirt: 0x2c3f5a, pants: 0x1c2536, tie: 0xff9b2d, accessories: ['sunglasses'], hair: 0x241a12, weapon: 'cards' },
-  },
-};
+// Register into ENEMY_DEFS so shared systems can treat bosses as enemies.
+// Exported so a hot reload of bosses.json can re-project without breaking the
+// object identities that running systems already hold.
+export function syncBossEnemyDefs() {
+  for (const [k, d] of Object.entries(BOSS_DEFS)) {
+    ENEMY_DEFS[k] = Object.assign(ENEMY_DEFS[k] ?? {}, {
+      name: d.name, hp: d.hp, dmg: d.dmg, speed: d.speed, radius: d.radius, centerY: d.centerY,
+      xp: d.xp, money: d.money, credit: 0, ai: 'boss', rare: true, big: true, boss: true,
+      mini: !!d.mini,
+    });
+  }
+}
+syncBossEnemyDefs();
 
-// register into ENEMY_DEFS so shared systems can treat bosses as enemies
-for (const [k, d] of Object.entries(BOSS_DEFS)) {
-  ENEMY_DEFS[k] = {
-    name: d.name, hp: d.hp, dmg: d.dmg, speed: d.speed, radius: d.radius, centerY: d.centerY,
-    xp: d.xp, money: d.money, credit: 0, ai: 'boss', rare: true, big: true, boss: true,
-    mini: !!d.mini,
-  };
+if (import.meta.hot) {
+  import.meta.hot.accept(['../../data/bosses.json'], ([mod]) => {
+    if (!mod) return;
+    deepApply(BOSS_DEFS, parseHexData(mod.default).defs);
+    syncBossEnemyDefs();
+    announceDataReload('bosses.json');
+  });
 }
 
 export class Boss extends Enemy {

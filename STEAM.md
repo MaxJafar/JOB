@@ -44,12 +44,14 @@ require it.
 
 ## Multiplayer without server bills
 
-Two transports, same message layer (`src/net/net.js`):
+Three transports, same message layer (`src/net/net.js`):
 
-1. **Today (dev / LAN / DIY):** `npm run host` starts the ~100-line WebSocket
-   relay (`server.js`). One player runs it and shares their IP (LAN or port
-   forward). The relay only routes packets — the host player's game instance
-   is authoritative.
+1. **Today (dev / LAN / DIY):** the relay (`server.js`) is served from the same
+   origin as the game — mounted into Vite for `npm run dev`, or standalone next
+   to `dist/` for `npm run host`. One player shares one link; the client derives
+   the socket URL from `location` and discovers rooms over `/api/rooms`, so a
+   LAN party needs no typed addresses and one open port. The relay only routes
+   packets — the host player's game instance is authoritative.
 2. **Steam build:** swap the WebSocket transport for **Steam networking** via
    steamworks.js — lobbies + `networking_sockets` P2P. Valve's Steam Datagram
    Relay carries the traffic for free, gives NAT traversal, and hides IPs.
@@ -58,6 +60,10 @@ Two transports, same message layer (`src/net/net.js`):
    - lobby create/join ⇒ `client.matchmaking`
    - `send(data, to)` ⇒ `client.networking_messages.sendMessageToUser`
    - keep the exact same JSON payloads
+3. **Web SKU (itch/portals — docs/ROADMAP.md §1, v0.85):** WebRTC
+   `RTCDataChannel` P2P with public STUN and a free-tier signaling channel for
+   room codes. No TURN, no dedicated servers, no port forwarding. Same JSON
+   payloads over a third transport; the relay and Steam paths are untouched.
 
 In Electron the relay can also be spawned automatically from the main process
 (`fork('server.js')`) when the player clicks "Host" — zero terminal usage.

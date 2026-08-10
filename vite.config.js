@@ -1,10 +1,12 @@
 import { defineConfig } from 'vite';
 import { readFileSync } from 'node:fs';
+import { lanRelay } from './scripts/vite-plugin-lan.js';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 
 export default defineConfig({
   base: './',
+  plugins: [lanRelay()],
   define: {
     // stamped into crash reports and telemetry so a bug report identifies a build
     __APP_VERSION__: JSON.stringify(pkg.version),
@@ -12,6 +14,7 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    host: true,             // bind every interface: a LAN playtest is the default, not a flag
   },
   optimizeDeps: {
     // WASM-backed deps ship their own prebundled ESM; letting esbuild rewrite

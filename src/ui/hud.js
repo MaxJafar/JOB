@@ -34,7 +34,6 @@ export class Hud {
     this.hitmarker = $('hitmarker');
     this.prompt = $('interact-prompt');
     this.vignette = $('damage-vignette');
-    this.latchOverlay = $('latch-overlay');
     this.statusStrip = $('status-strip');
     this._statusKey = '';
     this.toastStack = $('toast-stack');
@@ -401,16 +400,16 @@ export class Hud {
   }
 
   setGoo(on) { this.vignette.classList.toggle('goo', on); }
-  setLatch(on) { this.latchOverlay.classList.toggle('hidden', !on); }
 
   /**
-   * Status chips. Only re-renders when the SET of active statuses changes —
+   * Status chips. Only re-renders when the active statuses actually change —
    * these tick every frame and rewriting innerHTML at 60 Hz for an unchanged
-   * list is exactly the kind of thing that shows up in a frame graph.
+   * list is exactly the kind of thing that shows up in a frame graph. The key
+   * includes the label so a live countdown ("MEETING IN 3") still repaints.
    */
   setStatuses(list) {
     if (!this.statusStrip) return;
-    const key = list.map((s) => s.k).join('|');
+    const key = list.map((s) => `${s.k}${s.label}`).join('|');
     if (key !== this._statusKey) {
       this._statusKey = key;
       this.statusStrip.innerHTML = list.map((s) =>
@@ -452,7 +451,6 @@ export class Hud {
     this.itemTray.innerHTML = '';
     this.teamList.innerHTML = '';
     this.toastStack.innerHTML = '';
-    this.setLatch(false);
     this.setGoo(false);
     this.setStatuses([]);
     this.setPrompt(null);
