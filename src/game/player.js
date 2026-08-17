@@ -14,7 +14,13 @@ import { PlayerMotor } from '../player/motor.js';
 const _v1 = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _v3 = new THREE.Vector3();
+const _v4 = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
+
+// Hide the local body before a wall-compressed third-person camera reaches the
+// head. Separate enter/exit distances prevent flicker while sliding along a wall.
+const CAMERA_HIDE_DIST = 0.8;
+const CAMERA_SHOW_DIST = 1.05;
 
 const RARITY_GLOW = { common: 0, uncommon: 0.35, rare: 0.8 };
 
@@ -314,6 +320,7 @@ export class Player {
 
     this.camMode = 'tp';    // 'fp' | 'tp'
     this.camBlend = 1;      // 0 = fp, 1 = tp
+    this.cameraOccluded = false;
 
     this.recomputeStats();
     this.hp = this.stats.maxHp;
@@ -1233,7 +1240,7 @@ export class Player {
     this.mesh.rotation.y = this.yaw;
 
     const inFp = this.camBlend < 0.35;
-    this.mesh.visible = !inFp;
+    this.mesh.visible = !inFp && !this.cameraOccluded;
     this.viewmodel.visible = inFp && !this.dead;
 
     if (!inFp) {
@@ -1338,17 +1345,22 @@ export class Player {
         .addScaledVector(back, dist)
         .addScaledVector(side, 0.7 * this.camBlend)
         .addScaledVector(UP, 0.35 * this.camBlend);
-      // pull camera in if a wall is between eye and desired position
-      const steps = 10;
-      let t = 1;
-      for (let i = 1; i <= steps; i++) {
-        const k = i / steps;
-        const px = eye.x + (desired.x - eye.x) * k;
-        const py = eye.y + (desired.y - eye.y) * k;
-        const pz = eye.z + (desired.z - eye.z) * k;
-        if (game.level && game.level.pointBlocked(px, py, pz)) { t = Math.max(0.05, k - 0.12); break; }
-      }
-      cam.position.lerpVectors(eye, desired, t);
+      // Exact wall collision. The old ten-sample march could miss thin walls and
+      // its forced minimum placed the camera inside the avatar (or through a wall)
+      // when the player backed into one.
+      const cameraDir = _v4.copy(desired).sub(eye);
+      const wantedDist = cameraDir.length();
+      cameraDir.divideScalar(wantedDist);
+      const cameraDist = game.bvh?.cameraDistance(eye, cameraDir, wantedDist) ?? wantedDist;
+      cam.position.copy(eye).addScaledVector(cameraDir, cameraDist);
+
+      const blocked = cameraDist < wantedDist - 1e-3;
+      const hideAt = this.cameraOccluded ? CAMERA_SHOW_DIST : CAMERA_HIDE_DIST;
+      this.cameraOccluded = blocked && cameraDist < hideAt;
+      // In a gap narrower than the avatar there is nowhere to place a third-
+      // person camera. Keep the safe camera position and remove the local body
+      // from the render so the back of its head cannot cover the screen.
+      this.mesh.visible = !this.dead && this.camBlend >= 0.35 && !this.cameraOccluded;
       // rooms have real ceilings now — keep the camera under them
       if (game.level && !game.level.def.isFinal) {
         cam.position.y = Math.min(cam.position.y, CEIL_H - 0.25);

@@ -156,7 +156,11 @@ export class WorldBVH {
   cameraDistance(pivot, dir, want, pad = 0.28) {
     const hit = this.raycast(pivot, dir, want + pad);
     if (!hit) return want;
-    return Math.max(0.25, hit.distance - pad);
+    // Do not enforce a minimum pullback here. If the pivot is closer to a wall
+    // than `pad`, a minimum can put the camera centre on the far side of that
+    // wall. Returning zero keeps it at the safe pivot; the camera rig handles
+    // the resulting close-up by hiding the local avatar.
+    return Math.max(0, hit.distance - pad);
   }
 
   dispose() {

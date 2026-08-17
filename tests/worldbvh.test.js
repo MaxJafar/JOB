@@ -85,6 +85,12 @@ describe('WorldBVH', () => {
     expect(d).toBeLessThan(1.2);
   });
 
+  it('keeps the camera at the pivot instead of pushing it through a nearby wall', () => {
+    // Wall face is only 0.1u away, inside the camera padding distance.
+    const d = bvh.cameraDistance(new THREE.Vector3(-0.3, 1.5, -5), new THREE.Vector3(1, 0, 0), 6);
+    expect(d).toBe(0);
+  });
+
   it('returns the requested distance when nothing is in the way', () => {
     const d = bvh.cameraDistance(new THREE.Vector3(-10, 1.5, 3.5), new THREE.Vector3(1, 0, 0), 4);
     expect(d).toBe(4);
