@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import * as THREE from 'three';
 import { TUNE, DIFF_STAGES, FLOORS, SANDBOX_FLOOR, WAVES } from '../src/game/config.js';
 import { ENEMY_DEFS, ELITE_MODS } from '../src/game/enemies.js';
 import { BOSS_DEFS } from '../src/game/bosses.js';
@@ -142,6 +143,26 @@ describe('classes & modules', () => {
     }
     expect(CLASS_BY_KEY.intern.hp).toBe(115);
     expect(CLASS_BY_KEY.analyst.primary.charge).toBe(0.75);
+  });
+
+  it('dual-wield staplers fire one projectile from each weapon', () => {
+    const spawned = [];
+    const game = {
+      projectiles: { spawn: (shot) => spawned.push(shot) },
+      audio: { sfx: () => {} },
+    };
+    const player = {
+      upgrades: new Map([['doublestapler', 1]]),
+      stats: { damage: 13, flatDamage: 0, critChance: 0 },
+    };
+    const aim = {
+      origin: new THREE.Vector3(),
+      dir: new THREE.Vector3(0, 0, -1),
+    };
+
+    expect(CLASS_BY_KEY.intern.primary.fire(game, player, aim)).toBe(true);
+    expect(spawned).toHaveLength(2);
+    expect(spawned[0].vel.x * spawned[1].vel.x).toBeLessThan(0);
   });
 
   it('module tiers parsed and every passive has values', () => {

@@ -343,6 +343,7 @@ export class Player {
       this.heldItem = makeHeldItem(this.classDef.weapon);
       this.parts.grip.add(this.heldItem);
     }
+    this.akimboItem = null;
     if (this.classDef.offhand) {
       this.offhandItem = makeHeldItem(this.classDef.offhand);
       this.parts.gripL.add(this.offhandItem);
@@ -373,6 +374,7 @@ export class Player {
       this.vmWeapon = vmWeapon;
       this.viewmodel.add(vmWeapon);
     }
+    this.vmAkimboWeapon = null;
     if (this.classDef.offhand) {
       this.vmOffhand = makeHeldItem(this.classDef.offhand);
       this.vmOffhand.position.set(-0.75, -0.05, 0.15);
@@ -382,6 +384,36 @@ export class Player {
     this.viewmodel.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.frustumCulled = false; } });
     game.camera.add(this.viewmodel);
     this.viewmodel.visible = false;
+  }
+
+  get isAkimbo() {
+    return this.classKey === 'intern' && !!this.upgrades.get('doublestapler');
+  }
+
+  /** Keep the upgrade's combat state and both camera rigs visually in sync. */
+  syncAkimboVisual() {
+    const enabled = this.isAkimbo;
+    if (enabled && !this.akimboItem) {
+      this.akimboItem = makeHeldItem(this.classDef.weapon);
+      this.akimboItem.rotation.z = -0.2;
+      this.parts.gripL.add(this.akimboItem);
+
+      this.vmAkimboWeapon = makeHeldItem(this.classDef.weapon);
+      this.vmAkimboWeapon.scale.setScalar(1.15);
+      // The viewmodel group is offset right by 0.44, so -0.88 mirrors the
+      // original weapon across screen centre.
+      this.vmAkimboWeapon.position.set(-0.88, 0, 0);
+      this.vmAkimboWeapon.rotation.z = -0.2;
+      this.vmAkimboWeapon.traverse((o) => {
+        if (o.isMesh) { o.castShadow = false; o.frustumCulled = false; }
+      });
+      this.viewmodel.add(this.vmAkimboWeapon);
+    } else if (!enabled && this.akimboItem) {
+      this.akimboItem.parent?.remove(this.akimboItem);
+      this.vmAkimboWeapon?.parent?.remove(this.vmAkimboWeapon);
+      this.akimboItem = null;
+      this.vmAkimboWeapon = null;
+    }
   }
 
   get centerPos() { return _v3.set(this.pos.x, this.pos.y + 1.0, this.pos.z); }
@@ -513,6 +545,7 @@ export class Player {
 
   applyUpgrade(up) {
     this.upgrades.set(up.id, (this.upgrades.get(up.id) || 0) + 1);
+    if (up.id === 'doublestapler') this.syncAkimboVisual();
     if (up.id === 'insurance') this.heal(this.stats.maxHp * 0.5);
     this.recomputeStats();
     this.game.hud.renderItems(this.items, this.upgrades, this.modules);
@@ -658,14 +691,20 @@ export class Player {
     return { origin: mOrigin, dir: mDir, point, camDir: dir.clone() };
   }
 
-  muzzleWorldFx() {
+  muzzleWorldFx(side = 0) {
     // world position for muzzle flash fx
     if (this.camBlend < 0.5) {
       const cam = this.game.camera;
-      return _v1.copy(cam.position).addScaledVector(_v2.set(0, 0, -1).applyQuaternion(cam.quaternion), 0.9).clone();
+      const forward = _v2.set(0, 0, -1).applyQuaternion(cam.quaternion);
+      const pos = _v1.copy(cam.position).addScaledVector(forward, 0.9);
+      if (side) {
+        const right = _v3.set(1, 0, 0).applyQuaternion(cam.quaternion);
+        pos.addScaledVector(right, side * 0.34).addScaledVector(UP, -0.12);
+      }
+      return pos.clone();
     }
     const p = new THREE.Vector3();
-    this.parts.grip.getWorldPosition(p);
+    (side < 0 ? this.parts.gripL : this.parts.grip).getWorldPosition(p);
     return p;
   }
 
@@ -1177,7 +1216,12 @@ export class Player {
             game.hud.toast(cls.primary.overheatMsg ?? '🔥 ROUTER OVERHEATED — REBOOTING', 'warn');
           }
         }
-        if (!cls.primary.beam) game.effects.burst(this.muzzleWorldFx(), { color: 0xfff2b0, n: 2, speed: 1.2, size: 0.05, ttl: 0.12, gravity: 0 });
+        if (!cls.primary.beam) {
+          const sides = this.isAkimbo ? [-1, 1] : [0];
+          for (const side of sides) {
+            game.effects.burst(this.muzzleWorldFx(side), { color: 0xfff2b0, n: 2, speed: 1.2, size: 0.05, ttl: 0.12, gravity: 0 });
+          }
+        }
         game.net?.sendAction({ a: 'fire' });
       }
     }
@@ -1267,6 +1311,14 @@ export class Player {
         this.parts[off].rotation.x = -1.5;
         this.parts.armL.rotation.z = 0.28;
         this.parts.armR.rotation.z = -0.28;
+      } else if (this.isAkimbo) {
+        // Both staplers share the same aim line and recoil together. Opposite
+        // shoulder cant keeps the silhouette readable from behind.
+        const armAim = this.attackAnimT > 0 ? -1.45 + this.recoilT * 0.12 : aimUp - 0.9;
+        this.parts.armL.rotation.x = armAim;
+        this.parts.armR.rotation.x = armAim;
+        this.parts.armL.rotation.z = 0.16;
+        this.parts.armR.rotation.z = -0.16;
       } else {
         this.parts.armR.rotation.x = this.attackAnimT > 0 ? -1.45 + this.recoilT * 0.12 : aimUp - 0.9;
         this.parts.armR.rotation.z = -0.08;
@@ -1387,6 +1439,7 @@ export class Player {
       yaw: +this.yaw.toFixed(2), pitch: +this.pitch.toFixed(2),
       hp: Math.round(this.hp), maxHp: Math.round(this.stats.maxHp),
       cls: this.classKey, name: this.name, dead: this.dead, lvl: this.level,
+      akimbo: this.isAkimbo,
       // what you're wearing, so teammates can see it. Compact and only the
       // fields the visual builder actually reads.
       gear: this.gearFingerprint(),
@@ -1446,12 +1499,15 @@ export class RemotePlayer {
     this.mesh.add(person.root);
     this.body = person.root;
     this.parts = person.parts;
+    this.weaponKind = def.weapon;
+    this.akimboItem = null;
     if (def.gloves) {
       this.parts.grip.add(makeHeldItem('glove'));
       this.parts.gripL.add(makeHeldItem('glove'));
     } else if (def.weapon) {
       this.parts.grip.add(makeHeldItem(def.weapon));
     }
+    this.setAkimbo(!!state.akimbo);
     if (def.mount === 'chair') {
       this.chair = makeChairMount(def.look.chairColor ?? 0xff4fa3);
       this.mesh.add(this.chair);
@@ -1479,6 +1535,17 @@ export class RemotePlayer {
   }
 
   get centerPos() { return _v3.set(this.pos.x, this.pos.y + 1.0, this.pos.z); }
+
+  setAkimbo(enabled) {
+    if (enabled && !this.akimboItem && this.classKey === 'intern' && this.weaponKind) {
+      this.akimboItem = makeHeldItem(this.weaponKind);
+      this.akimboItem.rotation.z = -0.2;
+      this.parts.gripL.add(this.akimboItem);
+    } else if (!enabled && this.akimboItem) {
+      this.akimboItem.parent?.remove(this.akimboItem);
+      this.akimboItem = null;
+    }
+  }
 
   // ---- combat verbs ----
   // These are NOT optional. `pickTarget()` selects from livePlayers(), which
@@ -1524,6 +1591,7 @@ export class RemotePlayer {
     this.buffer.push({ t: now, x: s.x, y: s.y, z: s.z, yaw: s.yaw });
     if (this.buffer.length > 20) this.buffer.shift();
     this.hp = s.hp; this.maxHp = s.maxHp; this.dead = s.dead;
+    this.setAkimbo(!!s.akimbo);
     // rebuild the wardrobe only when it actually changed — this arrives at the
     // snapshot rate and rebuilding meshes 20×/s per teammate would be absurd
     if (s.gear) {
@@ -1570,6 +1638,12 @@ export class RemotePlayer {
       for (const wh of this.chair.userData.casters) wh.rotation.x += speed * dt * 5;
     } else if (speed > 0.6) animateWalk(this.parts, now, Math.min(1, speed / 8));
     else poseIdle(this.parts, now);
+    if (this.akimboItem) {
+      this.parts.armL.rotation.x = -1.2;
+      this.parts.armR.rotation.x = -1.2;
+      this.parts.armL.rotation.z = 0.16;
+      this.parts.armR.rotation.z = -0.16;
+    }
     this.mesh.visible = !this.dead;
   }
 
