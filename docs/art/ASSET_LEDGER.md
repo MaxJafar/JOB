@@ -3,13 +3,24 @@
 Generators: scripts/generate_hud_assets.py and scripts/generate_menu_assets.py
 Generator versions: hud-assets-v1 + menu-pack-v1
 Resolved fonts: display C:\Windows\Fonts\bahnschrift.ttf; ledger C:\Windows\Fonts\CascadiaMono.ttf; Tier 1 compatibility C:\Windows\Fonts\arialbd.ttf / C:\Windows\Fonts\consolab.ttf
-Style lock: docs/art/asset_style_lock.json version 1.1.0 (draft)
+Style lock: docs/art/asset_style_lock.json version 1.2.0 (draft)
 Review status: development candidates; owner approval pending
 
-The generator writes deterministic SVG masters and RGBA PNG derivatives. The
-hash and dimension table below is refreshed by the generation command. PNG
-corners must remain transparent for all overlay assets. Text and gameplay state
-are kept live in HTML/CSS.
+The project retains deterministic SVG/PNG fallback families and now uses native
+Codex image-generated PNG atlases for menu and HUD chrome. Raster source sheets
+and alpha-extracted runtime atlases live under `assets/ui/raster/`. The hash and
+dimension table below is refreshed by the ledger command. Overlay PNG gutters
+must remain transparent; text and gameplay state stay live in HTML/CSS.
+
+## Marketing and repository art
+
+| Path | Dimensions | SHA-256 (first 12) | Tool | Review |
+| --- | --- | --- | --- | --- |
+| `docs/art/job-readme-cover.png` | `1672x941` | `c8a72a1e2c2b` | built-in Codex ImageGen reference edit | development_candidate |
+
+The exact identity, asset, technical, and avoid blocks for the README cover are
+recorded in `docs/art/briefs/11-readme-cover.md`. The raster contains no title
+or mutable copy; the existing editable logo remains authoritative.
 
 <!-- GENERATED_LEDGER_START -->
 | Path | Dimensions | SHA-256 (first 12) | Review |
@@ -80,12 +91,12 @@ are kept live in HTML/CSS.
 | `assets/ui/buttons/icon-button-primary-hover@1x.png` | `64x64` | `d562a79b57bf` | development_candidate |
 | `assets/ui/buttons/icon-button-primary-pressed.svg` | `64x64` | `ab252a15b800` | development_candidate |
 | `assets/ui/buttons/icon-button-primary-pressed@1x.png` | `64x64` | `d562a79b57bf` | development_candidate |
-| `assets/ui/classes/class-card-default.svg` | `232x320` | `35c8b7fc2f15` | development_candidate |
-| `assets/ui/classes/class-card-default@1x.png` | `232x320` | `7d2b8bb9be82` | development_candidate |
-| `assets/ui/classes/class-card-hover.svg` | `232x320` | `a454287e11df` | development_candidate |
-| `assets/ui/classes/class-card-hover@1x.png` | `232x320` | `979d6497c7c0` | development_candidate |
-| `assets/ui/classes/class-card-selected.svg` | `232x320` | `1624bb175248` | development_candidate |
-| `assets/ui/classes/class-card-selected@1x.png` | `232x320` | `357a13fad031` | development_candidate |
+| `assets/ui/classes/class-card-default.svg` | `232x320` | `b61844d24720` | development_candidate |
+| `assets/ui/classes/class-card-default@1x.png` | `232x320` | `b2d17af5dedd` | development_candidate |
+| `assets/ui/classes/class-card-hover.svg` | `232x320` | `e6524b6a674d` | development_candidate |
+| `assets/ui/classes/class-card-hover@1x.png` | `232x320` | `884fc7884f46` | development_candidate |
+| `assets/ui/classes/class-card-selected.svg` | `232x320` | `9b94959f576f` | development_candidate |
+| `assets/ui/classes/class-card-selected@1x.png` | `232x320` | `bdba40485314` | development_candidate |
 | `assets/ui/classes/emblem-accountant.svg` | `128x128` | `be1a6f947bcc` | development_candidate |
 | `assets/ui/classes/emblem-accountant@1x.png` | `64x64` | `b03c73afc8eb` | development_candidate |
 | `assets/ui/classes/emblem-analyst.svg` | `128x128` | `c4887b6b783c` | development_candidate |
@@ -364,6 +375,19 @@ are kept live in HTML/CSS.
 | `assets/ui/rarity/rarity-uncommon-frame@1x.png` | `128x128` | `e082e27344b5` | development_candidate |
 | `assets/ui/rarity/rarity-uncommon-gem.svg` | `24x24` | `c5a60b539b36` | development_candidate |
 | `assets/ui/rarity/rarity-uncommon-gem@1x.png` | `24x24` | `68f19b1a6d46` | development_candidate |
+| `assets/ui/raster/class-emblems-atlas.png` | `1774x887` | `9e6ccca83bac` | development_candidate |
+| `assets/ui/raster/hud-abilities-atlas.png` | `1254x1254` | `27a85df5ff65` | development_candidate |
+| `assets/ui/raster/hud-frames-atlas.png` | `1536x1024` | `869962cd9330` | development_candidate |
+| `assets/ui/raster/job-office-menu-bg.png` | `1672x941` | `00bb8be9ad88` | development_candidate |
+| `assets/ui/raster/menu-panels-atlas.png` | `1536x1024` | `0d3442d10d32` | development_candidate |
+| `assets/ui/raster/sources/class-emblems-atlas-key.png` | `1774x887` | `aa7be7fdea7a` | development_candidate |
+| `assets/ui/raster/sources/hud-abilities-atlas-key.png` | `1254x1254` | `54488c6d6eb7` | development_candidate |
+| `assets/ui/raster/sources/hud-frames-atlas-key.png` | `1536x1024` | `aa50f06a15b1` | development_candidate |
+| `assets/ui/raster/sources/menu-panels-atlas-key.png` | `1536x1024` | `0496a5b6460b` | development_candidate |
+| `assets/ui/raster/sources/ui-actions-atlas-key.png` | `1915x821` | `73c4e852fb24` | development_candidate |
+| `assets/ui/raster/sources/ui-buttons-atlas-key.png` | `1717x916` | `1d52d0058929` | development_candidate |
+| `assets/ui/raster/ui-actions-atlas.png` | `1915x821` | `cdfeb749a919` | development_candidate |
+| `assets/ui/raster/ui-buttons-atlas.png` | `1717x916` | `76122c74cbba` | development_candidate |
 | `assets/ui/severance/balance-plate.svg` | `400x56` | `d2d710e2456c` | development_candidate |
 | `assets/ui/severance/balance-plate@1x.png` | `400x56` | `75487db9fa85` | development_candidate |
 | `assets/ui/severance/cardio.svg` | `128x128` | `4e37b7df3c85` | development_candidate |

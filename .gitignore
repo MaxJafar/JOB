@@ -38,3 +38,6 @@ __pycache__/
 
 # ---- belongs to another project (MaxJafar/wilhelm-alert), parked here by mistake ----
 /wilhelm-scream-banner.png
+
+.vercel
+.env*

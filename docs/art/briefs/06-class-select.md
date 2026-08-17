@@ -17,6 +17,7 @@ Destination: assets/ui/classes/
 - Primary request: ten geometric department emblems, three class-card states, stat glyphs/tracks, mouse keycaps, and role tag.
 - Aspect ratio / dimensions: 128px emblem masters with 64px PNGs; 232x320 card masters; supporting dimensions follow the packet.
 - Composition and safe areas: no face or character portrait; emblem body stays light on dark with class accent at the border.
+- Stretch safety: card masters contain frame art only; section dividers belong to the live `p` and `.cstats` flow so variable-height copy can never cross baked rules.
 - Subject or surface: each role uses its specified office-object badge subject.
 - Allowed variation: locked economy, tech, aggression, sustain, and barista accents.
 - Required invariants: live names/descriptions/stats; selected card carries only an approval registration mark.

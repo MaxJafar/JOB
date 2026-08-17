@@ -546,7 +546,6 @@ def generate_classes() -> list[Path]:
     }
     for state, (edge, accent, alpha) in card_states.items():
         primitives = plate(232, 320, SURFACE_DARK, edge, accent, 18, alpha)
-        primitives += [line([(16, 126), (216, 126)], LINE, 1, 110), line([(16, 262), (216, 262)], LINE, 1, 110)]
         if state == "selected":
             primitives += [
                 line([(194, 284), (216, 284), (216, 306)], GOLD, 3),
@@ -872,7 +871,7 @@ def record_ledger_header() -> None:
         "Generator:": "Generators: scripts/generate_hud_assets.py and scripts/generate_menu_assets.py",
         "Generator version:": f"Generator versions: hud-assets-v1 + {VERSION}",
         "Generator versions:": f"Generator versions: hud-assets-v1 + {VERSION}",
-        "Style lock:": "Style lock: docs/art/asset_style_lock.json version 1.1.0 (draft)",
+        "Style lock:": "Style lock: docs/art/asset_style_lock.json version 1.2.0 (draft)",
         "Review status:": "Review status: development candidates; owner approval pending",
     }
     resolved = (

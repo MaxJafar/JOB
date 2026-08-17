@@ -7,6 +7,14 @@ import { describeModule } from '../game/modules.js';
 
 const $ = (id) => document.getElementById(id);
 
+function setHudRasterIcon(ability, sprite) {
+  const icon = ability?.querySelector('.ability-icon');
+  if (!icon) return;
+  icon.textContent = '';
+  icon.classList.add('raster-hud-icon');
+  icon.dataset.hudIcon = sprite;
+}
+
 export class Hud {
   constructor() {
     this.root = $('hud');
@@ -78,8 +86,9 @@ export class Hud {
   hide() { this.root.classList.add('hidden'); }
 
   setAbilityIcons(cls) {
-    this.abilities.primary.querySelector('.ability-icon').textContent = cls.primary.icon;
-    this.abilities.secondary.querySelector('.ability-icon').textContent = cls.secondary.icon;
+    setHudRasterIcon(this.abilities.primary, `${cls.key}-primary`);
+    setHudRasterIcon(this.abilities.secondary, `${cls.key}-secondary`);
+    setHudRasterIcon(this.abilities.dash, 'dash');
     this.className.textContent = `${cls.name} — ${cls.title}`;
   }
 
@@ -216,7 +225,7 @@ export class Hud {
     const s = p.modules?.special;
     this.abilities.special.classList.toggle('hidden', !s);
     if (s) {
-      this.abilities.special.querySelector('.ability-icon').textContent = s.icon;
+      setHudRasterIcon(this.abilities.special, 'module');
       this.abilities.special.title = `${s.name} — ${describeModule(s)}`;
       this.abilities.special.style.borderColor = `${s.css}66`;
     }
@@ -226,11 +235,11 @@ export class Hud {
   refreshPockets(p) {
     const th = p.throwable ? THROWABLES[p.throwable.id] : null;
     this.pocketThrow.classList.toggle('filled', !!th);
-    this.pocketThrow.querySelector('.ability-icon').textContent = th ? th.icon : '🧨';
+    setHudRasterIcon(this.pocketThrow, 'throwable');
     this.pocketThrow.querySelector('.pocket-count').textContent = th ? `×${p.throwable.count}` : '';
     const c = p.consumables[0] ? CONSUMABLES[p.consumables[0].id] : null;
     this.pocketConsume.classList.toggle('filled', !!c);
-    this.pocketConsume.querySelector('.ability-icon').textContent = c ? c.icon : '🥪';
+    setHudRasterIcon(this.pocketConsume, 'consumable');
     this.pocketConsume.querySelector('.pocket-count').textContent = p.consumables.length > 1 ? `×${p.consumables.length}` : '';
   }
 

@@ -1,7 +1,7 @@
 # J.O.B. Asset Art Bible
 
 Status: `draft`
-Version: `1.1.0`
+Version: `1.2.0`
 Owner / approval record: `Project owner review pending`
 Machine companion: [`asset_style_lock.json`](asset_style_lock.json)
 
@@ -35,14 +35,15 @@ busy 1080p battle and on Steam's dark blue-gray surface.
 
 ## Locked visual signature
 
-- **Medium and materials:** flat graphic UI built from paper forms, punch
-  cards, thin ink lines, stamped status marks, and restrained metal/plastic
-  desk-object cues; no photoreal surfaces.
+- **Medium and materials:** graphic UI with native image-generated raster
+  hardware, paper forms, punch cards, stamped marks, and restrained painted
+  metal/plastic desk-object cues; no photoreal characters or real brands.
 - **Shape language and layout:** sharp rectangles with one clipped 45-degree
   corner, 1-2px light borders, quiet stretch-safe centers, explicit hierarchy,
   and visible registration/ledger details.
-- **Lighting and depth:** front-on, orthographic, mostly flat; use at most two
-  tonal steps and no shadow deeper than 4px.
+- **Lighting and depth:** interactive chrome stays front-on and readable, with
+  contained bevel/rim-light depth inside each sprite. Cinematic depth is
+  reserved for non-interactive menu backdrops.
 - **Palette:** `#FFD23F` money-gold, `#38E1FF` cyan, `#FF4D5A` red,
   `#58E07C` green, `#FF4FA3` magenta, surfaces `#101420` to `#2A3242`,
   text `#EEF2F6`, dim text `#9AA7B5`.
@@ -70,29 +71,28 @@ busy 1080p battle and on Steam's dark blue-gray surface.
 | Family | Purpose | Text strategy | Delivery |
 | --- | --- | --- | --- |
 | Logo | J.O.B. wordmark and badge | Editable vector letterforms | SVG master + transparent PNG |
-| UI plate | Tier 1 HUD plates and controls | Live engine text | SVG + 9-slice RGBA PNG |
-| Slot, bar, reticle, rarity | Tier 1 combat readability | No baked mutable text | Dimensioned SVG + RGBA PNG |
-| Menu glyph | Buttons, labels, statuses, empty slots | No text; SVG `currentColor` masks | 24px SVG + 48px RGBA PNG |
-| Class emblem | Ten role/department identities | No faces and no text | 128px SVG + 64px RGBA PNG |
-| Menu plate | Menus, cards, rows, fields, controls | Live engine text | Dimensioned SVG + 9-slice RGBA PNG |
+| UI plate | Tier 1 HUD plates and controls | Live engine text | Native RGBA PNG atlas; legacy SVG/PNG fallback kit retained |
+| Slot, bar, reticle, rarity | Tier 1 combat readability | No baked mutable text | Native HUD-frame atlas plus existing PNG gameplay sprites |
+| Menu glyph | Buttons, labels, statuses, empty slots | No text | Native RGBA PNG action atlas, displayed at 24-48px |
+| Class emblem | Ten role/department identities | No faces and no text | Native RGBA PNG atlas, displayed at 64-105px |
+| Menu plate | Menus, cards, rows, fields, controls | Live engine text | Native RGBA PNG button/panel atlases with recorded crop regions |
 | Perk icon | Five Severance benefit identities | No text; path derived from perk ID | 128px SVG + 64px RGBA PNG |
 | Verdict stamp | Fired/promoted run bookends | Locked baked display-mark exception | 1024x420 SVG + RGBA PNG |
 | Keycap | Handbook and class input prompts | Live engine key labels | Stretch-safe SVG + RGBA PNG |
 
 ### UI plates and controls
 
-Front-on, text-free masters with protected edges and a quiet stretch-safe
-center. Labels, focus state, tooltips, and interaction semantics remain live in
-HTML/CSS. Deliver editable SVG masters plus deterministic RGBA PNG derivatives.
-The 9-slice source is a 96x96 tile for panels and an equivalent plate for
-buttons; preserve a 16px corner-safe zone when scaling.
+Front-on, text-free raster sprites have protected edges and quiet centers.
+Labels, focus state, tooltips, and interaction semantics remain live in
+HTML/CSS. Native Codex image-generation atlases are chroma-keyed, soft-matted,
+and exported as RGBA PNG; legacy SVG/PNG plates remain available as fallbacks.
 
 ### Slot frames, bars, and indicators
 
-Transparent, front-on vector plates with no baked gameplay state. Use the
-locked color to identify the role, keep the center empty for live icons/text,
-and reserve the outer 12-16% for borders, clips, and registration marks.
-Deliver SVG masters and PNGs at the packet size; state overlays remain live.
+Transparent, front-on plates have no baked gameplay state. Use the locked
+color to identify the role, keep the center empty for live icons/text, and
+reserve the outer 12-16% for borders, clips, and registration marks. The
+runtime uses the generated HUD-frame PNG atlas; state overlays remain live.
 
 ### Logos and typography
 
@@ -102,17 +102,17 @@ only. Gameplay/UI labels are never generated into bitmap art.
 
 ### Icons and motifs
 
-Simple silhouettes and desk-object symbols are vector-native where possible.
-Keep a consistent 3/4 desk-object angle for item families, but Tier 1 slot and
-status glyphs stay front-on and immediately readable.
+Simple silhouettes and desk-object symbols use native image-generated raster
+atlases for the menu system. Keep a consistent 3/4 desk-object angle for item
+families, while status glyphs remain immediately readable at their target size.
 
 ### Tier 3 menus and meta screens
 
-Menu art stays front-on and uses the same clipped receipt corner as Tier 1.
-Button glyphs are monochrome SVG masks so focus and hover colors remain live.
-Class and perk identities are geometric department badges, never portraits or
-emoji. Card, row, input, slider, checkbox, keycap, lobby, and handbook surfaces
-keep their centers quiet for HTML labels and remote strings.
+Menu art uses painted PNG chrome with the same clipped receipt corner as Tier
+1. Button and status glyphs come from the generated action atlas. Class
+identities are painted department objects, never portraits or emoji. Card,
+row, lobby, and control surfaces keep their centers quiet for HTML labels and
+remote strings; focus, hover, and selected states remain live in CSS.
 
 Only `stamp-fired` and `stamp-promoted` may bake menu copy. Their exact phrases,
 angles, palette roles, deterministic distress, and resolved display font are
@@ -120,7 +120,8 @@ part of the provenance record. All run stats and explanatory copy remain live.
 
 ## Non-negotiable prohibitions
 
-- No photorealism, painterly rendering, 3D bevels, or heavy gradients.
+- No photoreal characters, unrelated concept-art rendering, excessive bevels,
+  or heavy multi-stop gradients.
 - No rounded-pill UI, deep drop shadows, glassmorphism, or soft neumorphic
   surfaces.
 - No real-company logos, copied trade dress, recognizable brand slogans, or
@@ -133,14 +134,15 @@ part of the provenance record. All run stats and explanatory copy remain live.
 
 ## Production and provenance rules
 
-Source masters live under `assets/ui/<family>/` as SVG. PNG derivatives follow
-`assets/ui/<category>/<name>@<scale>.png`; Tier 1 is generated by
-`scripts/generate_hud_assets.py` and Tier 3 by
-`scripts/generate_menu_assets.py`. The generated assets are deterministic and
-must be regenerated rather than hand-painted over. All RGBA exports must have
-transparent corners unless a surface is explicitly opaque. Record source,
-dimensions, hashes, generator version, resolved fonts, review result, and
-intended use in [`ASSET_LEDGER.md`](ASSET_LEDGER.md).
+Native image-generation sources and alpha-extracted runtime atlases live under
+`assets/ui/raster/`, mirrored to `public/assets/ui/raster/`. The exact prompts,
+sheet layouts, extraction settings, and crop strategy are recorded in the
+raster brief. Existing deterministic SVG/PNG fallback families remain under
+`assets/ui/<family>/`; Tier 1 fallbacks are generated by
+`scripts/generate_hud_assets.py` and Tier 3 fallbacks by
+`scripts/generate_menu_assets.py`. All overlay RGBA exports must have
+transparent gutters. Record source, dimensions, hashes, generator version,
+review result, and intended use in [`ASSET_LEDGER.md`](ASSET_LEDGER.md).
 
 Promote a candidate from draft only after owner review on a 1080p game capture
 and against Steam `#1B2838`. Keep gameplay state, labels, and localization
@@ -150,10 +152,11 @@ outside the art.
 
 - Confirm the bundled production font files and whether Archivo Black / IBM
   Plex Mono should be shipped locally or resolved through platform fallbacks.
-- Approve the first HUD screenshot pass at 1080p and Steam `#1B2838`.
+- Approve the native-raster HUD and menu screenshot pass at 1080p and Steam
+  `#1B2838`.
 - Confirm whether Tier 2 item icons should use the same border weight as the
   Tier 1 slot frames or a separate icon-specific weight.
-- Approve the Tier 3 class-select screenshot at 1080p.
+- Approve the native-raster class-select screenshot at 1080p.
 
 ## Change control
 

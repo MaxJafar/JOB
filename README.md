@@ -2,6 +2,10 @@
 
 <img src="assets/ui/logo/job-logo-full%401x.png" alt="J.O.B — Just Obey Business" width="520">
 
+<a href="https://job-roguelite.vercel.app">
+  <img src="docs/art/job-readme-cover.png" alt="A lone office worker faces a horde of hostile coworkers and rogue office machines beneath the glowing elevator core" width="1100">
+</a>
+
 **A low-poly 3D roguelite battle arena set in a corporate tower.**
 
 Risk of Rain's escalation and items × Left 4 Dead's AI Director and specials —
@@ -9,11 +13,14 @@ except every biome is a department and every boss has a corner office.
 
 ### Climb the tower. Fire the C.E.O.
 
+### [▶ Play free in your browser](https://job-roguelite.vercel.app)
+
 [![CI](https://github.com/MaxJafar/JOB/actions/workflows/ci.yml/badge.svg)](https://github.com/MaxJafar/JOB/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 [![three.js](https://img.shields.io/badge/three.js-r180-blue)](https://threejs.org)
 [![Vite](https://img.shields.io/badge/vite-7-purple)](https://vite.dev)
 [![Rapier](https://img.shields.io/badge/physics-rapier-orange)](https://rapier.rs)
+[![Play on Vercel](https://img.shields.io/badge/play-browser-FFD23F?logo=vercel&logoColor=101420)](https://job-roguelite.vercel.app)
 [![Recast](https://img.shields.io/badge/nav-recast-teal)](https://recastnav.com)
 
 </div>

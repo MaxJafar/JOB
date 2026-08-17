@@ -2,7 +2,7 @@
   "schema_version": "1.0.0",
   "lock_id": "job_asset_style_lock_v1",
   "status": "draft",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "brand": {
     "game": "J.O.B. - Just Obey Business",
     "tone": "corporate office satire with brutalist memo clarity and arcade neon escalation",
@@ -35,6 +35,7 @@
   "visual_invariants": {
     "medium_materials": [
       "flat graphic UI",
+      "hand-painted raster hardware with restrained material wear",
       "paper forms, punch cards, stamps, thin ink lines",
       "restrained desk-object and metal/plastic cues"
     ],
@@ -63,9 +64,9 @@
       "#EEF2F6 and #9AA7B5 text"
     ],
     "lighting_depth": [
-      "front-on orthographic treatment",
-      "maximum two tonal steps",
-      "no shadow deeper than 4px"
+      "front-on orthographic treatment for interactive chrome",
+      "contained bevel and rim-light depth inside each sprite",
+      "cinematic depth is permitted only in non-interactive menu backdrops"
     ],
     "texture_restraint": [
       "optional low-opacity scanline or paper grain",
@@ -74,7 +75,7 @@
     ]
   },
   "prohibited": [
-    "photorealism or painterly rendering",
+    "photoreal characters or unrelated painterly concept art",
     "heavy multi-stop gradients",
     "rounded-pill or neumorphic UI",
     "deep drop shadows and glassmorphism",
@@ -93,21 +94,21 @@
     "ui_plate": {
       "purpose": "stretch-safe panels, buttons, and prompts for HUD and menus",
       "text_strategy": "live_engine_text",
-      "output_contract": "SVG master plus transparent 9-slice PNG derivatives",
+      "output_contract": "native image-generation RGBA PNG atlas for runtime; deterministic SVG/PNG fallback kit retained",
       "allowed_variation": ["default dark", "gold accent", "danger accent", "interaction state"],
       "prohibited": ["baked labels", "rounded pills", "quiet-center obstruction"]
     },
     "slot_frame": {
       "purpose": "ability and equipment slot frames",
       "text_strategy": "live_engine_text",
-      "output_contract": "128px transparent SVG and PNG plates",
+      "output_contract": "native image-generation HUD-frame RGBA PNG atlas for runtime; transparent SVG/PNG fallback plates retained",
       "allowed_variation": ["role color", "empty state", "module plug-in tabs", "cooldown overlay ring"],
       "prohibited": ["baked ability icons", "baked cooldown numbers", "heavy bevels"]
     },
     "bar": {
       "purpose": "HP, XP, boss, and event bar frame/fill kit",
       "text_strategy": "live_engine_text",
-      "output_contract": "horizontal SVG masters plus 9-slice-able PNG derivatives",
+      "output_contract": "native image-generation HUD-frame RGBA PNG atlas with live CSS fills; SVG/PNG fallback kit retained",
       "allowed_variation": ["health green/red", "XP/event cyan", "boss danger red"],
       "prohibited": ["baked percentages", "unbounded glow", "more than two tonal steps"]
     },
@@ -134,24 +135,24 @@
     },
     "menu_glyph": {
       "purpose": "platform-stable button, label, status, and empty-slot symbols",
-      "text_strategy": "no_text_currentColor_vector",
-      "output_contract": "24px SVG mask master plus 48px transparent RGBA derivative and specified tint states",
-      "allowed_variation": ["default", "gold", "dim", "semantic silhouette"],
+      "text_strategy": "no_text_raster_sprite",
+      "output_contract": "native image-generation PNG atlas with alpha; CSS sprite regions at 24-48px",
+      "allowed_variation": ["painted office object", "semantic accent", "strong small-size silhouette"],
       "prohibited": ["system emoji as primary art", "baked labels", "rounded icon containers"]
     },
     "class_emblem": {
       "purpose": "department-badge identity for the ten playable roles",
       "text_strategy": "no_text",
-      "output_contract": "128px clipped-corner SVG master plus 64px transparent RGBA derivative",
-      "allowed_variation": ["locked class accent on border", "desk-object badge subject"],
-      "prohibited": ["faces", "character portraits", "palette drift", "photoreal objects"]
+      "output_contract": "native image-generation PNG atlas with alpha; CSS sprite regions at 64-105px",
+      "allowed_variation": ["locked class accent", "painted desk-object emblem subject"],
+      "prohibited": ["faces", "character portraits", "palette drift", "real-brand objects"]
     },
     "menu_plate": {
       "purpose": "stretch-safe screen, card, row, input, status, and control surfaces",
       "text_strategy": "live_engine_text",
-      "output_contract": "dimensioned SVG masters plus deterministic transparent RGBA 9-slice derivatives",
+      "output_contract": "native image-generation transparent PNG atlases with recorded tight-crop regions",
       "allowed_variation": ["default", "hover", "pressed", "disabled", "primary", "danger", "semantic row state"],
-      "prohibited": ["baked labels", "quiet-center obstruction", "rounded pills", "deep shadow"]
+      "prohibited": ["baked labels", "quiet-center obstruction", "rounded pills", "external cast shadows"]
     },
     "perk_icon": {
       "purpose": "stable Severance perk identity derived from perk IDs",
@@ -179,7 +180,7 @@
     "text_strategy": "live HTML/engine text except the editable logo SVG and the two locked verdict display marks",
     "logo_strategy": "editable SVG master with deterministic raster derivatives",
     "font_strategy": "Archivo Black or equivalent OFL display face; IBM Plex Mono or equivalent OFL ledger face; platform fallbacks documented in docs/art/FONTS.md",
-    "transparency": "RGBA PNG with transparent corners; no chroma-key source is needed for deterministic vector-derived UI assets",
+    "transparency": "Native image-generation sheets use a flat chroma key followed by soft-matte alpha extraction; runtime atlases are RGBA PNG with transparent gutters",
     "provenance_record": "docs/art/ASSET_LEDGER.md with generator version, dimensions, hashes, and review state"
   },
   "change_control": {
@@ -187,10 +188,10 @@
     "update_trigger": "palette, corner motif, typography strategy, or asset-family contract changes",
     "versioning": "amend the art bible and lock together; regenerate affected masters and derivatives",
     "current_amendment": {
-      "version": "1.1.0",
-      "trigger": "Tier 3 menu-pack-v1 adds menu glyph, class emblem, menu plate, perk icon, verdict stamp, and keycap contracts",
-      "migration": "generate deterministic Tier 3 masters and derivatives, retain live text except the two verdict marks, and preserve Tier 1 hashes",
-      "review_date": "owner screenshot review pending"
+      "version": "1.2.0",
+      "trigger": "Owner-directed replacement of procedural menu and HUD SVG chrome with native Codex image-generated PNG game assets",
+      "migration": "wire raster atlases for menu background, buttons, actions, classes, menu panels, and HUD frames; keep all labels and mutable state live",
+      "review_date": "2026-08-11 runtime screenshot review"
     }
   },
   "open_decisions": [

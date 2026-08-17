@@ -20,15 +20,9 @@ const assetImage = ({ className, src, alt = '', width, height, fallbackClass, fa
   <img class="${className}" src="${src}" alt="${esc(alt)}" width="${width}" height="${height}"
        ${lazy ? 'loading="lazy"' : ''} onerror="${fallbackScript(fallbackClass, fallback)}">`;
 
-const emblem = (c, className = 'ci') => assetImage({
-  className,
-  src: `/assets/ui/classes/emblem-${c.key}@1x.png`,
-  alt: `${c.name} emblem`,
-  width: 64,
-  height: 64,
-  fallbackClass: `${className} ci-fallback`,
-  fallback: c.icon,
-});
+const emblem = (c, className = 'ci') => `
+  <span class="${className} class-emblem emblem-${c.key}" role="img"
+        aria-label="${esc(`${c.name} emblem`)}"></span>`;
 
 const perkIcon = (p) => assetImage({
   className: 'perk-icon',
@@ -75,7 +69,7 @@ const verdictStamp = (kind, text, win = false) => assetImage({
 
 const jobLogo = () => assetImage({
   className: 'job-logo',
-  src: '/assets/ui/logo/job-logo-full@1x.png',
+  src: '/assets/ui/logo/job-logo-home@1x.png',
   alt: 'J.O.B. — JUST OBEY BUSINESS',
   width: 720,
   height: 270,
