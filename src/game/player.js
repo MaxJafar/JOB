@@ -371,6 +371,9 @@ export class Player {
     } else {
       const vmWeapon = makeHeldItem(this.classDef.weapon);
       vmWeapon.scale.setScalar(1.15);
+      // The stapler asset is authored nose-forward in character space (+Z),
+      // while a camera viewmodel fires down camera-forward (-Z).
+      if (this.classDef.weapon === 'stapler') vmWeapon.rotation.y = Math.PI;
       this.vmWeapon = vmWeapon;
       this.viewmodel.add(vmWeapon);
     }
@@ -400,6 +403,7 @@ export class Player {
 
       this.vmAkimboWeapon = makeHeldItem(this.classDef.weapon);
       this.vmAkimboWeapon.scale.setScalar(1.15);
+      this.vmAkimboWeapon.rotation.y = Math.PI;
       // The viewmodel group is offset right by 0.44, so -0.88 mirrors the
       // original weapon across screen centre.
       this.vmAkimboWeapon.position.set(-0.88, 0, 0);
