@@ -16,11 +16,11 @@ must remain transparent; text and gameplay state stay live in HTML/CSS.
 
 | Path | Dimensions | SHA-256 (first 12) | Tool | Review |
 | --- | --- | --- | --- | --- |
-| `docs/art/job-readme-cover.png` | `1672x941` | `c8a72a1e2c2b` | built-in Codex ImageGen reference edit | development_candidate |
+| `docs/art/job-readme-cover.png` | `1772x887` | `e8d0657fc3c8` | owner-supplied production UI capture | owner_approved_capture |
 
-The exact identity, asset, technical, and avoid blocks for the README cover are
-recorded in `docs/art/briefs/11-readme-cover.md`. The raster contains no title
-or mutable copy; the existing editable logo remains authoritative.
+The README cover's source, exact-copy contract, and owner-approved UI exception
+are recorded in `docs/art/briefs/11-readme-cover.md`. Its logo and menu copy are
+pixels captured from the real production UI, not AI-generated typography.
 
 <!-- GENERATED_LEDGER_START -->
 | Path | Dimensions | SHA-256 (first 12) | Review |

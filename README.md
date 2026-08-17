@@ -1,9 +1,7 @@
 <div align="center">
 
-<img src="assets/ui/logo/job-logo-full%401x.png" alt="J.O.B — Just Obey Business" width="520">
-
 <a href="https://job-roguelite.vercel.app">
-  <img src="docs/art/job-readme-cover.png" alt="A lone office worker faces a horde of hostile coworkers and rogue office machines beneath the glowing elevator core" width="1100">
+  <img src="docs/art/job-readme-cover.png" alt="J.O.B — Just Obey Business main menu, with browser game modes and progression options" width="1100">
 </a>
 
 **A low-poly 3D roguelite battle arena set in a corporate tower.**
